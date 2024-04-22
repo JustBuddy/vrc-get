@@ -37,12 +37,14 @@ export function SideBar({className}: { className?: string }) {
 		<Card
 			className={`${className} w-auto max-w-[20rem] p-2 shadow-xl shadow-blue-gray-900/5 ml-4 my-4 shrink-0`}>
 			<List className="min-w-[10rem] flex-grow">
+				<a href="https://github.com/vrc-get/vrc-get" target="_blank"><img src="/icon.png" width="100%"/></a>
 				<SideBarItem href={"/projects"} text={t("projects")} icon={ListBulletIcon}/>
 				<SideBarItem href={"/repositories"} text={t("vpm repositories")} icon={CloudIcon}/>
 				<SideBarItem href={"/settings"} text={t("settings")} icon={Cog6ToothIcon}/>
 				<SideBarItem href={"/log"} text={t("logs")} icon={Bars4Icon}/>
 				<div className={'flex-grow'}/>
 				<ListItem className={"text-sm"} onClick={copyVersionName}>v{currentVersion}</ListItem>
+				<a href="https://buddyworks.wtf" target="_blank"><img src="/bwtext.png" width="100%"/></a>
 			</List>
 		</Card>
 	);
