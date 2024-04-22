@@ -41,7 +41,7 @@ export default function Page() {
 	return (
 		<VStack className={"m-4"}>
 			<HNavBar className={"flex-shrink-0"}>
-				<Typography className="cursor-pointer py-1.5 font-bold flex-grow-0">
+				<Typography className="cursor-pointer py-1.2 flex-grow-0">
 					{tc("logs")}
 				</Typography>
 			</HNavBar>
