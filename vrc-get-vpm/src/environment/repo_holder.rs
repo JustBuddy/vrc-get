@@ -99,7 +99,7 @@ impl RepoHolder {
                             });
                     }
                     Err(e) => {
-                        error!("fetching remote repo '{}': {}", remote_url, e);
+                        log::debug!("fetching remote repo '{}': {}", remote_url, e);
                     }
                 }
             }

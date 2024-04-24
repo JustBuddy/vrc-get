@@ -1,12 +1,54 @@
 "use client"
 
-import React from "react";
+import React, {useEffect} from "react";
 import {Navbar} from "@material-tailwind/react";
+import {listen} from '@tauri-apps/api/event';
+import {LogEntry, utilGetLogEntries} from "@/lib/bindings";
+import {Card, List, ListItem, ListItemPrefix} from "@material-tailwind/react";
+import {notoSansMono} from "@/app/fonts";
+
+
+export function logEntryToText(entry: LogEntry) {
+	
+	return `${entry.message}`;
+}
+
 
 export function VStack({className, children}: { className?: string, children: React.ReactNode }) {
+	const [logEntries, setLogEntries] = React.useState<LogEntry[]>([]);
+
+	useEffect(() => {
+		utilGetLogEntries().then(list => setLogEntries(list.toSorted()));
+	}, []);
+
+	useEffect(() => {
+		let unlisten: (() => void) | undefined = undefined;
+		let unlistened = false;
+
+		listen("log", (event) => {
+			setLogEntries((entries) => {
+				const entry = event.payload as LogEntry;
+				return [entry, ...entries];
+			});
+		}).then((unlistenFn) => {
+			if (unlistened) {
+				unlistenFn();
+			} else {
+				unlisten = unlistenFn;
+			}
+		});
+
+		return () => {
+			unlisten?.();
+			unlistened = true;
+		};
+	}, []);
 	return (
 		<div className={`flex flex-col overflow-hidden w-full gap-3 ${className}`}>
-			{children}
+			{children} 
+			<div className={`text-xs h-1/6 w-full w-full overflow-hidden whitespace-pre`}>
+			{logEntries.map((entry) => logEntryToText(entry)).join("\n")}
+			</div>
 		</div>
 	);
 }
