@@ -4,8 +4,6 @@ import React, {useEffect} from "react";
 import {Navbar} from "@material-tailwind/react";
 import {listen} from '@tauri-apps/api/event';
 import {LogEntry, utilGetLogEntries} from "@/lib/bindings";
-import {Card, List, ListItem, ListItemPrefix} from "@material-tailwind/react";
-import {notoSansMono} from "@/app/fonts";
 
 
 export function logEntryToText(entry: LogEntry) {
@@ -46,9 +44,6 @@ export function VStack({className, children}: { className?: string, children: Re
 	return (
 		<div className={`flex flex-col overflow-hidden w-full gap-3 ${className}`}>
 			{children} 
-			<div className={`text-xs h-1/6 w-full w-full overflow-hidden whitespace-pre`}>
-			{logEntries.map((entry) => logEntryToText(entry)).join("\n")}
-			</div>
 		</div>
 	);
 }
