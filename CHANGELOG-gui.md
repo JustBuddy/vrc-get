@@ -19,6 +19,11 @@ The format is based on [Keep a Changelog].
 
 ### Security
 
+## [0.1.2] - 2024-05-10
+### Fixed
+- Unity version used in template is not updated [`#933`](https://github.com/vrc-get/vrc-get/pull/933)
+  - We upgraded Unity to 2022.3.22f1
+
 ## [0.1.1] - 2024-05-10
 ### Added
 - `/opt/unityhub/unityhub` to the unity hub search path [`#812`](https://github.com/vrc-get/vrc-get/pull/812)
@@ -253,7 +258,8 @@ The format is based on [Keep a Changelog].
 - Apple code signing [`#422`](https://github.com/anatawa12/vrc-get/pull/422)
 - Migrate vpm 2019 project to 2022 [`#435`](https://github.com/anatawa12/vrc-get/pull/435)
 
-[Unreleased]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.1...HEAD
+[Unreleased]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.2...HEAD
+[0.1.2]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.1...gui-v0.1.2
 [0.1.1]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0...gui-v0.1.1
 [0.1.0]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0-rc.0...gui-v0.1.0
 [0.1.0-rc.0]: https://github.com/vrc-get/vrc-get/compare/gui-v0.1.0-beta.21...gui-v0.1.0-rc.0
