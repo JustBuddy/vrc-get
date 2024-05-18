@@ -9,11 +9,10 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use futures::prelude::*;
-use indexmap::IndexMap;
 use log::{error, info, warn};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use specta::{specta, DataType, DefOpts, ExportError, Type};
+use specta::specta;
 use tauri::api::dialog::blocking::FileDialogBuilder;
 use tauri::async_runtime::Mutex;
 use tauri::{
@@ -39,6 +38,7 @@ use vrc_get_vpm::{
 
 use crate::config::GuiConfigHolder;
 use crate::logging::LogEntry;
+use crate::specta::IndexMapV2;
 
 mod async_command;
 
@@ -89,6 +89,9 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         util_open,
         util_get_log_entries,
         util_get_version,
+        crate::deep_link_support::deep_link_has_add_repository,
+        crate::deep_link_support::deep_link_take_add_repository,
+        crate::deep_link_support::deep_link_install_vcc,
     ]
 }
 
@@ -141,6 +144,9 @@ pub(crate) fn export_ts() {
             util_open,
             util_get_log_entries,
             util_get_version,
+            crate::deep_link_support::deep_link_has_add_repository,
+            crate::deep_link_support::deep_link_take_add_repository,
+            crate::deep_link_support::deep_link_install_vcc,
         ]
         .unwrap(),
         specta::ts::ExportConfiguration::new().bigint(specta::ts::BigIntExportBehavior::Number),
@@ -528,8 +534,9 @@ struct TauriProject {
     path: String,
     project_type: TauriProjectType,
     unity: String,
-    last_modified: u64,
-    created_at: u64,
+    unity_revision: Option<String>,
+    last_modified: i64,
+    created_at: i64,
     favorite: bool,
     is_exists: bool,
 }
@@ -581,8 +588,9 @@ impl TauriProject {
                 .unity_version()
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "unknown".into()),
-            last_modified: project.last_modified().as_millis_since_epoch(),
-            created_at: project.crated_at().as_millis_since_epoch(),
+            unity_revision: project.unity_revision().map(|x| x.to_string()),
+            last_modified: project.last_modified().timestamp_millis(),
+            created_at: project.crated_at().timestamp_millis(),
             favorite: project.favorite(),
             is_exists,
         }
@@ -1468,50 +1476,6 @@ enum TauriDownloadRepository {
 
 // workaround IndexMap v2 is not implemented in specta
 
-#[derive(serde::Deserialize)]
-#[serde(transparent)]
-struct IndexMapV2<K: std::hash::Hash + Eq, V>(IndexMap<K, V>);
-
-impl Type for IndexMapV2<Box<str>, Box<str>> {
-    fn inline(opts: DefOpts, generics: &[DataType]) -> Result<DataType, ExportError> {
-        Ok(DataType::Record(Box::new((
-            String::inline(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-            String::inline(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-        ))))
-    }
-
-    fn reference(opts: DefOpts, generics: &[DataType]) -> Result<DataType, ExportError> {
-        Ok(DataType::Record(Box::new((
-            String::reference(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-            String::reference(
-                DefOpts {
-                    parent_inline: opts.parent_inline,
-                    type_map: opts.type_map,
-                },
-                generics,
-            )?,
-        ))))
-    }
-}
-
 #[tauri::command]
 #[specta::specta]
 async fn environment_download_repository(
@@ -1920,6 +1884,7 @@ async fn environment_create_project(
 struct TauriProjectDetails {
     unity: Option<(u16, u8)>,
     unity_str: Option<String>,
+    unity_revision: Option<String>,
     installed_packages: Vec<(String, TauriBasePackageInfo)>,
     should_resolve: bool,
 }
@@ -1941,6 +1906,7 @@ async fn project_details(project_path: String) -> Result<TauriProjectDetails, Ru
             .unity_version()
             .map(|v| (v.major(), v.minor())),
         unity_str: unity_project.unity_version().map(|v| v.to_string()),
+        unity_revision: unity_project.unity_revision().map(|x| x.to_string()),
         installed_packages: unity_project
             .installed_packages()
             .map(|(k, p)| (k.to_string(), TauriBasePackageInfo::new(p)))
