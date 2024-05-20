@@ -617,9 +617,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.97"
+version = "1.0.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099a5357d84c4c61eb35fc8eafa9a79a902c2f76911e5747ced4e032edd8d9b4"
+checksum = "41c270e7540d725e65ac7f1b212ac8ce349719624d7bcff99f8e2e488e8cf03f"
 
 [[package]]
 name = "cesu8"
@@ -1110,9 +1110,9 @@ checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
 
 [[package]]
 name = "either"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a47c1c47d2f5964e29c61246e81db715514cd532db6b5116a25ea3c03d6780a2"
+checksum = "3dca9240753cf90908d7e4aac30f630662b02aebaa1b58a3cadabdb23385b58b"
 
 [[package]]
 name = "embed-resource"
@@ -2291,9 +2291,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -2791,9 +2791,9 @@ dependencies = [
 
 [[package]]
 name = "open"
-version = "5.1.2"
+version = "5.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "449f0ff855d85ddbf1edd5b646d65249ead3f5e422aaa86b7d2d0b049b103e32"
+checksum = "2eb49fbd5616580e9974662cb96a3463da4476e649a7e4b258df0de065db0657"
 dependencies = [
  "is-wsl",
  "libc",
@@ -4348,9 +4348,9 @@ checksum = "e1fc403891a21bcfb7c37834ba66a547a8f402146eba7265b5a6d88059c9ff2f"
 
 [[package]]
 name = "tauri"
-version = "1.6.5"
+version = "1.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13ce04f77bcd40bb57ec7061725c9c415d30b2bf80257637b857ee067f2fa198"
+checksum = "f3f99c42ed6e39885ad1bb14317b0379bc99aad7ffe20db517cd761267b30343"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -5057,7 +5057,7 @@ dependencies = [
  "env_logger",
  "home",
  "indexmap 2.2.6",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "log",
  "reqwest 0.12.4",
  "serde",
@@ -5068,7 +5068,7 @@ dependencies = [
 
 [[package]]
 name = "vrc-get-gui"
-version = "0.1.4-beta.0"
+version = "0.1.5-beta.0"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -5083,7 +5083,7 @@ dependencies = [
  "log",
  "log-panics",
  "objc",
- "open 5.1.2",
+ "open 5.1.3",
  "reqwest 0.12.4",
  "ringbuffer",
  "serde",
@@ -5146,7 +5146,7 @@ dependencies = [
  "futures",
  "hex",
  "indexmap 2.2.6",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "lazy_static",
  "log",
  "pin-project-lite",

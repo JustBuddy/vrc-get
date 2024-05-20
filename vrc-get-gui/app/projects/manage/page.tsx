@@ -486,7 +486,7 @@ function PageBody() {
 					{tc("projects:manage:project location",
 						{path: projectPath},
 						{
-							components: {code: <code className={"bg-gray-200 p-0.5 whitespace-pre"}/>}
+							components: {path: <span className={"p-0.5 font-path whitespace-pre bg-gray-100"}/>}
 						})}
 				</Typography>
 				<div className={"flex-grow-0 flex-shrink-0 w-2"}></div>
@@ -1273,7 +1273,7 @@ const PackageRow = memo(function PackageRow(
 									disabled={locked || !bulkUpdateAvailable}
 									className="hover:before:content-none"/>
 			</td>
-			<td className={`${cellClass} overflow-hidden max-w-80 overflow-ellipsis`}>
+			<td className={`${cellClass} overflow-hidden max-w-80 overflow-ellipsis ${pkg.installed ? '' : 'opacity-50'}`}>
 				<div className="flex flex-col">
 					<Typography className="font-normal">
 						{pkg.displayName}

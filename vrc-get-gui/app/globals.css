@@ -50,3 +50,7 @@ h5 {
 h6 {
 	@apply text-sm;
 }
+
+code {
+	@apply font-mono;
+}
