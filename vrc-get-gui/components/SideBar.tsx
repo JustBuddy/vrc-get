@@ -43,7 +43,7 @@ export function SideBar({className}: { className?: string }) {
 				<SideBarItem href={"/settings"} text={t("settings")} icon={Cog6ToothIcon}/>
 				<SideBarItem href={"/log"} text={t("logs")} icon={Bars4Icon}/>
 				<div className={'flex-grow'}/>
-				<ListItem className={"text-sm"} onClick={copyVersionName}>v{currentVersion}</ListItem>
+				<ListItem className={"text-sm"} onClick={copyVersionName}>v{currentVersion}-BW</ListItem>
 				<a href="https://buddyworks.wtf" target="_blank"><img src="/bwtext.png" width="100%"/></a>
 			</List>
 		</Card>
