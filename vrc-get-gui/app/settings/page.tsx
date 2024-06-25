@@ -415,6 +415,25 @@ function AlcomCard() {
 		}
 	}
 
+	const currentVersionResult = useQuery({
+		queryKey: ["utilGetVersion"],
+		queryFn: utilGetVersion,
+		refetchOnMount: false,
+		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
+		refetchInterval: false,
+	});
+
+	const currentVersion = currentVersionResult.status == "success" ? currentVersionResult.data : "Loading...";
+
+	const copyVersionName = () => {
+		if (currentVersionResult.status == "success") {
+			navigator.clipboard.writeText(currentVersionResult.data);
+			toastNormal(t("sidebar:toast:version copied"));
+		}
+	};
+
+
 	const reportIssue = async () => {
 		const url = new URL("https://github.com/vrc-get/vrc-get/issues/new")
 		url.searchParams.append("labels", "bug,vrc-get-gui")
@@ -430,7 +449,7 @@ function AlcomCard() {
 
 	return (
 		<Card className={"flex-shrink-0 p-4 flex flex-col gap-2"}>
-			<h2>ALCOM</h2>
+			<h2>ALCOM</h2>{currentVersion}
 			<div className={"flex flex-row flex-wrap gap-2"}>
 				<Button onClick={checkForUpdate}>{tc("settings:check update")}</Button>
 				<Button onClick={reportIssue}>{tc("settings:button:open issue")}</Button>
