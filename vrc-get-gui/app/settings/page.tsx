@@ -426,14 +426,6 @@ function AlcomCard() {
 
 	const currentVersion = currentVersionResult.status == "success" ? currentVersionResult.data : "Loading...";
 
-	const copyVersionName = () => {
-		if (currentVersionResult.status == "success") {
-			navigator.clipboard.writeText(currentVersionResult.data);
-			toastNormal(t("sidebar:toast:version copied"));
-		}
-	};
-
-
 	const reportIssue = async () => {
 		const url = new URL("https://github.com/vrc-get/vrc-get/issues/new")
 		url.searchParams.append("labels", "bug,vrc-get-gui")
