@@ -2,7 +2,7 @@
 
 import {Button} from "@/components/ui/button";
 import {Card} from "@/components/ui/card";
-import {Cloud, Settings, List, AlignLeft, SwatchBook} from "lucide-react";
+import {Cloud, Settings, List, AlignLeft, SwatchBook, Package} from "lucide-react";
 import React from "react";
 import {useQuery} from "@tanstack/react-query";
 import {utilGetVersion} from "@/lib/bindings";
@@ -40,13 +40,13 @@ export function SideBar({className}: { className?: string }) {
 			className={`${className} flex w-auto max-w-[20rem] p-2 shadow-xl shadow-primary/5 ml-4 my-4 shrink-0 overflow-auto`}>
 			<div className="flex flex-col gap-1 p-2 min-w-[10rem] flex-grow">
 				<SideBarItem href={"/projects"} text={t("projects")} icon={List}/>
-				<SideBarItem href={"/repositories"} text={t("vpm repositories")} icon={Cloud}/>
+				<SideBarItem href={"/repositories"} text={t("vpm repositories")} icon={Package}/>
+				{isDev && <SideBarItem href={"/settings/palette"} text={"UI Palette"} icon={SwatchBook}/>}
+				<div className={'flex-grow'}/>
 				<SideBarItem href={"/settings"} text={t("settings")} icon={Settings}/>
 				<SideBarItem href={"/log"} text={t("logs")} icon={AlignLeft}/>
-				{isDev && <SideBarItem href={"/settings/palette"} text={"UI Palette (dev only)"} icon={SwatchBook}/>}
-				<div className={'flex-grow'}/>
-				<Button variant={"ghost"} className={"text-sm justify-start hover:bg-card hover:text-card-foreground"}
-								onClick={copyVersionName}>v{currentVersion}</Button>
+				
+				<a href="https://buddyworks.wtf" target="_blank"><img src="/bwtext.png" width="100%"/></a>
 			</div>
 		</Card>
 	);

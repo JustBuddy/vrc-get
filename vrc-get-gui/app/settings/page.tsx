@@ -445,10 +445,21 @@ function AlcomCard(
 		refetch();
 	};
 
+	const currentVersionResult = useQuery({
+		queryKey: ["utilGetVersion"],
+		queryFn: utilGetVersion,
+		refetchOnMount: false,
+		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
+		refetchInterval: false,
+	});
+
+	const currentVersion = currentVersionResult.status == "success" ? currentVersionResult.data : "Loading...";
+
 	return (
 		<Card className={"flex-shrink-0 p-4 flex flex-col gap-4"}>
 			{updateState && <CheckForUpdateMessage response={updateState} close={() => setUpdateState(null)}/>}
-			<h2>ALCOM</h2>
+			<h2>ALCOM {currentVersion}</h2>
 			<div className={"flex flex-row flex-wrap gap-2"}>
 				<Button onClick={checkForUpdate}>{tc("settings:check update")}</Button>
 				<Button onClick={reportIssue}>{tc("settings:button:open issue")}</Button>
