@@ -112,6 +112,7 @@ jobs:
 
       # region notes
       - name: Reset notes.txt
+        if: ${{ !steps.update-version.outputs.prerelease }}
         run: |
           cat <<SHELL > vrc-get-gui/notes.txt
           # This is notes text for the updater json, which will be shown in the updater dialog.
@@ -119,7 +120,7 @@ jobs:
           SHELL
       - name: Reset notes-beta.txt
         run: |
-          cat <<SHELL > vrc-get-gui/notes.txt
+          cat <<SHELL > vrc-get-gui/notes-beta.txt
           # This is notes text for the updater json, which will be shown in the updater dialog.
           # Lines starting with '#' will be ignored (as comments).
           SHELL
@@ -455,7 +456,7 @@ jobs:
         run: |-
           BRANCH_NAME="update-tauri-updater-json-v$GUI_VERSION"
           git switch -c "$BRANCH_NAME"
-          git add public/api/gui/tauri-updater.json
+          git add public/api/gui/tauri-updater.json public/api/gui/tauri-updater-beta.json
           git commit -m "chore: update tauri-updater.json to v$GUI_VERSION"
           git push -u origin "$BRANCH_NAME"
 

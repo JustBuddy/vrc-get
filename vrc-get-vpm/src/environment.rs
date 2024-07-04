@@ -30,6 +30,7 @@ use std::cmp::Reverse;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::fmt::Write;
 use std::fs::remove_file;
 use std::path::{Path, PathBuf};
 use std::pin::pin;
@@ -306,6 +307,18 @@ impl<T: HttpClient, IO: EnvironmentIo> Environment<T, IO> {
         if user_repos.iter().any(|x| x.url() == Some(&url)) {
             return Err(AddRepositoryErr::AlreadyAdded);
         }
+        // should we check more urls?
+        if !self.ignore_curated_repository()
+            && url.as_str() == "https://packages.vrchat.com/curated?download"
+        {
+            return Err(AddRepositoryErr::AlreadyAdded);
+        }
+        if !self.ignore_official_repository()
+            && url.as_str() == "https://packages.vrchat.com/official?download"
+        {
+            return Err(AddRepositoryErr::AlreadyAdded);
+        }
+
         let http = self.http.as_ref().ok_or(AddRepositoryErr::OfflineMode)?;
 
         let (remote_repo, etag) = RemoteRepository::download(http, &url, &headers).await?;
@@ -318,9 +331,19 @@ impl<T: HttpClient, IO: EnvironmentIo> Environment<T, IO> {
             if user_repos.iter().any(|x| x.id() == Some(repo_id)) {
                 return Err(AddRepositoryErr::AlreadyAdded);
             }
+            if repo_id == "com.vrchat.repos.official"
+                && !self.vrc_get_settings.ignore_official_repository()
+            {
+                return Err(AddRepositoryErr::AlreadyAdded);
+            }
+            if repo_id == "com.vrchat.repos.curated"
+                && !self.vrc_get_settings.ignore_curated_repository()
+            {
+                return Err(AddRepositoryErr::AlreadyAdded);
+            }
         }
 
-        let mut local_cache = LocalCachedRepository::new(remote_repo, headers);
+        let mut local_cache = LocalCachedRepository::new(remote_repo, headers.clone());
 
         // set etag
         if let Some(etag) = etag {
@@ -334,14 +357,17 @@ impl<T: HttpClient, IO: EnvironmentIo> Environment<T, IO> {
 
         let file_name = self.write_new_repo(&local_cache).await?;
 
-        self.settings.add_user_repo(UserRepoSetting::new(
+        let mut repo_setting = UserRepoSetting::new(
             self.io
                 .resolve(format!("{}/{}", REPO_CACHE_FOLDER, file_name).as_ref())
                 .into_boxed_path(),
             repo_name,
             Some(url),
             repo_id,
-        ));
+        );
+        repo_setting.headers = headers;
+
+        self.settings.add_user_repo(repo_setting);
         Ok(())
     }
 
@@ -472,6 +498,83 @@ impl<T: HttpClient, IO: EnvironmentIo> Environment<T, IO> {
         Ok(())
     }
 
+    pub async fn clear_package_cache(&self) -> io::Result<()> {
+        let io = &self.io;
+
+        let repo_folder_stream = io.read_dir(REPO_CACHE_FOLDER.as_ref()).await?;
+
+        let pkg_folder_entries = repo_folder_stream.try_filter_map(|pkg_entry| async move {
+            if pkg_entry.file_type().await?.is_dir() {
+                return Ok(Some(pkg_entry));
+            }
+            Ok(None)
+        });
+
+        pkg_folder_entries
+            .try_for_each_concurrent(None, |pkg_folder_entry| async move {
+                let pkg_name = pkg_folder_entry.file_name();
+
+                let pkg_folder_stream = io
+                    .read_dir(&Path::new(REPO_CACHE_FOLDER).join(pkg_folder_entry.file_name()))
+                    .await?
+                    .map_ok(move |inner| (pkg_name.clone(), inner));
+
+                let cache_file_entries =
+                    pkg_folder_stream.try_filter_map(|(pkg_id, cache_entry)| async move {
+                        let name = cache_entry.file_name();
+                        let name = name.as_encoded_bytes();
+                        if name.starts_with(b"vrc-get-")
+                            && (name.ends_with(b".zip") || name.ends_with(b".zip.sha256"))
+                        {
+                            if cache_entry.file_type().await?.is_file() {
+                                return Ok(Some((pkg_id, cache_entry)));
+                            }
+                        }
+                        Ok(None)
+                    });
+
+                cache_file_entries
+                    .try_for_each_concurrent(None, |(pkg_id, cache_entry)| async move {
+                        let file_path = Path::new(REPO_CACHE_FOLDER)
+                            .join(pkg_id)
+                            .join(cache_entry.file_name());
+                        io.remove_file(&file_path).await?;
+                        Ok(())
+                    })
+                    .await?;
+
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    pub fn export_repositories(&self) -> String {
+        let mut builder = String::new();
+
+        for setting in self.get_user_repos() {
+            let Some(url) = setting.url() else { continue };
+            if setting.headers().is_empty() {
+                writeln!(builder, "{url}").unwrap();
+            } else {
+                let mut add_url = Url::parse("vcc://vpm/addRepo").unwrap();
+                let mut query_builder = add_url.query_pairs_mut();
+                query_builder.clear();
+                query_builder.append_pair("url", url.as_str());
+
+                for (header_name, value) in setting.headers() {
+                    query_builder.append_pair("headers[]", &format!("{}:{}", header_name, value));
+                }
+                drop(query_builder);
+
+                writeln!(builder, "{}", add_url).unwrap();
+            }
+        }
+
+        builder
+    }
+
     pub fn show_prerelease_packages(&self) -> bool {
         self.settings.show_prerelease_packages()
     }
@@ -502,6 +605,14 @@ impl<T: HttpClient, IO: EnvironmentIo> Environment<T, IO> {
 
     pub fn set_unity_hub_path(&mut self, value: &str) {
         self.settings.set_unity_hub(value);
+    }
+
+    pub fn ignore_curated_repository(&self) -> bool {
+        self.vrc_get_settings.ignore_curated_repository()
+    }
+
+    pub fn ignore_official_repository(&self) -> bool {
+        self.vrc_get_settings.ignore_official_repository()
     }
 
     pub fn http(&self) -> Option<&T> {

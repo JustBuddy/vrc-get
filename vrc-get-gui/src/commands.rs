@@ -58,6 +58,11 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         environment::packages::environment_download_repository,
         environment::packages::environment_add_repository,
         environment::packages::environment_remove_repository,
+        environment::packages::environment_import_repository_pick,
+        environment::packages::environment_import_download_repositories,
+        environment::packages::environment_import_add_repositories,
+        environment::packages::environment_export_repositories,
+        environment::packages::environment_clear_package_cache,
         environment::settings::environment_unity_versions,
         environment::settings::environment_get_settings,
         environment::settings::environment_pick_unity_hub,
@@ -124,6 +129,11 @@ pub(crate) fn export_ts() {
             environment::packages::environment_download_repository,
             environment::packages::environment_add_repository,
             environment::packages::environment_remove_repository,
+            environment::packages::environment_import_repository_pick,
+            environment::packages::environment_import_download_repositories,
+            environment::packages::environment_import_add_repositories,
+            environment::packages::environment_export_repositories,
+            environment::packages::environment_clear_package_cache,
             environment::settings::environment_unity_versions,
             environment::settings::environment_get_settings,
             environment::settings::environment_pick_unity_hub,
@@ -231,7 +241,7 @@ impl<E: Display> From<E> for RustError {
     }
 }
 
-#[derive(Serialize, specta::Type)]
+#[derive(Serialize, specta::Type, Clone)]
 struct TauriVersion {
     major: u64,
     minor: u64,
@@ -252,7 +262,7 @@ impl From<&Version> for TauriVersion {
     }
 }
 
-#[derive(Serialize, specta::Type)]
+#[derive(Serialize, specta::Type, Clone)]
 struct TauriBasePackageInfo {
     name: String,
     display_name: Option<String>,
