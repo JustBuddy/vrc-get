@@ -33,7 +33,7 @@ fn main() {
     // logger is now initialized, we can use log for panics
     log_panics::init();
 
-    #[cfg(debug_assertions)]
+    #[cfg(dev)]
     commands::export_ts();
 
     let app = tauri::Builder::default()
@@ -62,6 +62,8 @@ fn main() {
         })
         .build(tauri_context())
         .expect("error while building tauri application");
+
+    os::initialize(app.handle());
 
     // deep link support
     #[cfg(target_os = "macos")]

@@ -8,20 +8,24 @@ interface GlobalInfo {
 	language: string;
 	theme: string;
 	version: string | null;
+	commitHash: string | null;
 	osType: OsType;
 	arch: Arch;
 	osInfo: string;
 	localAppData: string; // empty string for non-windows
+	defaultUnityArguments: string[];
 }
 
 const fallbackGlobalInfo: Readonly<GlobalInfo> = {
 	language: "en",
 	theme: "system",
 	version: null,
+	commitHash: null,
 	osType: "WindowsNT",
 	arch: "x86_64",
 	osInfo: "unknown OS",
 	localAppData: "",
+	defaultUnityArguments: [],
 };
 
 const globalInfo: Readonly<GlobalInfo> = load();

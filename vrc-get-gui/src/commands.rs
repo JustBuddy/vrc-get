@@ -34,6 +34,9 @@ mod prelude {
 pub type Environment = vrc_get_vpm::Environment<reqwest::Client, DefaultEnvironmentIo>;
 pub type UnityProject = vrc_get_vpm::UnityProject<DefaultProjectIo>;
 
+// Note: remember to change similar in typescript
+static DEFAULT_UNITY_ARGUMENTS: &[&str] = &["-debugCodeOptimization"];
+
 pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
     generate_handler![
         environment::config::environment_language,
@@ -81,6 +84,8 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         environment::settings::environment_set_backup_format,
         environment::settings::environment_set_release_channel,
         environment::settings::environment_set_use_alcom_for_vcc_protocol,
+        environment::settings::environment_get_default_unity_arguments,
+        environment::settings::environment_set_default_unity_arguments,
         project::project_details,
         project::project_install_package,
         project::project_install_multiple_package,
@@ -99,6 +104,7 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         project::project_get_unity_path,
         project::project_set_unity_path,
         util::util_open,
+        util::util_open_url,
         util::util_get_log_entries,
         util::util_get_version,
         util::util_check_for_update,
@@ -110,7 +116,7 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
     ]
 }
 
-#[cfg(debug_assertions)]
+#[cfg(dev)]
 pub(crate) fn export_ts() {
     let export_path = "lib/bindings.ts";
     tauri_specta::ts::export_with_cfg(
@@ -160,6 +166,8 @@ pub(crate) fn export_ts() {
             environment::settings::environment_set_backup_format,
             environment::settings::environment_set_release_channel,
             environment::settings::environment_set_use_alcom_for_vcc_protocol,
+            environment::settings::environment_get_default_unity_arguments,
+            environment::settings::environment_set_default_unity_arguments,
             project::project_details,
             project::project_install_package,
             project::project_install_multiple_package,
@@ -178,6 +186,7 @@ pub(crate) fn export_ts() {
             project::project_get_unity_path,
             project::project_set_unity_path,
             util::util_open,
+            util::util_open_url,
             util::util_get_log_entries,
             util::util_get_version,
             util::util_check_for_update,

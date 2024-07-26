@@ -5,14 +5,27 @@ import { ScrollPageContainer } from "@/components/ScrollPageContainer";
 import { ScrollableCardTable } from "@/components/ScrollableCardTable";
 import {
 	BackupFormatSelect,
+	BackupPathWarnings,
 	FilePathRow,
 	LanguageSelector,
+	ProjectPathWarnings,
 	ThemeSelector,
 } from "@/components/common-setting-parts";
 import { HNavBar, VStack } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	DialogDescription,
+	DialogFooter,
+	DialogOpen,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	UnityArgumentsSettings,
+	useUnityArgumentsSettings,
+} from "@/components/unity-arguments-settings";
 import { assertNever } from "@/lib/assert-never";
 import {
 	type CheckForUpdateResponse,
@@ -25,14 +38,15 @@ import {
 	environmentPickUnity,
 	environmentPickUnityHub,
 	environmentSetBackupFormat,
+	environmentSetDefaultUnityArguments,
 	environmentSetReleaseChannel,
 	environmentSetShowPrereleasePackages,
 	environmentSetUseAlcomForVccProtocol,
 	utilCheckForUpdate,
+	utilOpenUrl,
 } from "@/lib/bindings";
 import globalInfo, { useGlobalInfo } from "@/lib/global-info";
 import { tc, tt } from "@/lib/i18n";
-import { shellOpen } from "@/lib/shellOpen";
 import {
 	toastError,
 	toastNormal,
@@ -105,6 +119,10 @@ function Settings({
 					refetch={refetch}
 					unityPaths={settings.unity_paths}
 				/>
+				<UnityLaunchArgumentsCard
+					refetch={refetch}
+					unityArgs={settings.default_unity_arguments}
+				/>
 				<Card className={"flex-shrink-0 p-4"}>
 					<h2>{tc("settings:default project path")}</h2>
 					<p className={"whitespace-normal"}>
@@ -116,6 +134,7 @@ function Settings({
 						refetch={refetch}
 						successMessage={tc("settings:toast:default project path updated")}
 					/>
+					<ProjectPathWarnings projectPath={settings.default_project_path} />
 				</Card>
 				<BackupCard
 					projectBackupPath={settings.project_backup_path}
@@ -224,6 +243,91 @@ function UnityInstallationsCard({
 	);
 }
 
+function UnityLaunchArgumentsCard({
+	refetch,
+	unityArgs,
+}: {
+	refetch: () => void;
+	unityArgs: string[] | null;
+}) {
+	const [open, setOpen] = useState(false);
+
+	const defaultUnityArgs = useGlobalInfo().defaultUnityArguments;
+	const realUnityArgs = unityArgs ?? defaultUnityArgs;
+
+	const close = () => setOpen(false);
+	const openDialog = () => setOpen(true);
+
+	return (
+		<Card className={"flex-shrink-0 p-4"}>
+			<div className={"pb-2 flex align-middle"}>
+				<div className={"flex-grow flex items-center"}>
+					<h2>{tc("settings:default unity arguments")}</h2>
+				</div>
+				<Button onClick={openDialog} size={"sm"} className={"m-1"}>
+					{tc("settings:button:edit unity arguments")}
+				</Button>
+			</div>
+			<p className={"text-sm"}>
+				{tc("settings:default unity arguments description")}
+			</p>
+			<ol className={"flex flex-col"}>
+				{realUnityArgs.map((v, i) => (
+					<Input disabled key={i + v} value={v} className={"w-full"} />
+				))}
+			</ol>
+			{open && (
+				<DialogOpen>
+					<LaunchArgumentsEditDialogBody
+						unityArgs={unityArgs}
+						refetch={refetch}
+						close={close}
+					/>
+				</DialogOpen>
+			)}
+		</Card>
+	);
+}
+
+function LaunchArgumentsEditDialogBody({
+	unityArgs,
+	refetch,
+	close,
+}: {
+	unityArgs: string[] | null;
+	refetch: () => void;
+	close: () => void;
+}) {
+	const defaultUnityArgs = useGlobalInfo().defaultUnityArguments;
+	const context = useUnityArgumentsSettings(unityArgs, defaultUnityArgs);
+
+	const saveAndClose = async () => {
+		await environmentSetDefaultUnityArguments(context.currentValue);
+		close();
+		refetch();
+	};
+
+	return (
+		<>
+			<DialogTitle>
+				{tc("settings:dialog:default launch arguments")}
+			</DialogTitle>
+			{/* TODO: use ScrollArea (I failed to use it inside dialog) */}
+			<DialogDescription className={"max-h-[50dvh] overflow-y-auto"}>
+				<UnityArgumentsSettings context={context} />
+			</DialogDescription>
+			<DialogFooter>
+				<Button onClick={close} variant={"destructive"}>
+					{tc("general:button:cancel")}
+				</Button>
+				<Button onClick={saveAndClose} disabled={context.hasError}>
+					{tc("general:button:save")}
+				</Button>
+			</DialogFooter>
+		</>
+	);
+}
+
 function BackupCard({
 	projectBackupPath,
 	backupFormat,
@@ -248,7 +352,7 @@ function BackupCard({
 			<h2>{tc("projects:backup")}</h2>
 			<div className="mt-2">
 				<h3>{tc("settings:backup:path")}</h3>
-				<p className={"whitespace-normal"}>
+				<p className={"whitespace-normal text-sm"}>
 					{tc("settings:backup:path description")}
 				</p>
 				<FilePathRow
@@ -257,10 +361,14 @@ function BackupCard({
 					refetch={refetch}
 					successMessage={tc("settings:toast:backup path updated")}
 				/>
+				<BackupPathWarnings backupPath={projectBackupPath} />
 			</div>
 			<div className="mt-2">
+				<h3>{tc("settings:backup:format")}</h3>
+				<p className={"whitespace-normal text-sm"}>
+					{tc("settings:backup:format description")}
+				</p>
 				<label className={"flex items-center"}>
-					<h3>{tc("settings:backup:format")}</h3>
 					<BackupFormatSelect
 						backupFormat={backupFormat}
 						setBackupFormat={setBackupFormat}
@@ -366,9 +474,15 @@ function AlcomCard({
 		url.searchParams.append("labels", "bug,vrc-get-gui");
 		url.searchParams.append("template", "01_gui_bug-report.yml");
 		url.searchParams.append("os", `${globalInfo.osInfo} - ${globalInfo.arch}`);
-		url.searchParams.append("version", globalInfo.version ?? "unknown");
+		let version = globalInfo.version ?? "unknown";
+		if (globalInfo.commitHash) {
+			version += ` (${globalInfo.commitHash})`;
+		} else {
+			version += " (unknown commit)";
+		}
+		url.searchParams.append("version", version);
 
-		void shellOpen(url.toString());
+		void utilOpenUrl(url.toString());
 	};
 
 	const changeReleaseChannel = async (value: "indeterminate" | boolean) => {

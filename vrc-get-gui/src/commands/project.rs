@@ -23,6 +23,7 @@ use vrc_get_vpm::unity_project::{AddPackageOperation, PendingProjectChanges};
 use crate::commands::async_command::*;
 use crate::commands::prelude::*;
 use crate::commands::state::PendingProjectChangesInfo;
+use crate::commands::DEFAULT_UNITY_ARGUMENTS;
 use crate::config::GuiConfigState;
 use crate::utils::project_backup_path;
 
@@ -522,6 +523,8 @@ fn is_unity_running(project_path: impl AsRef<Path>) -> bool {
 #[specta::specta]
 pub async fn project_open_unity(
     state: State<'_, Mutex<EnvironmentState>>,
+    config: State<'_, GuiConfigState>,
+    io: State<'_, DefaultEnvironmentIo>,
     project_path: String,
     unity_path: String,
 ) -> Result<bool, RustError> {
@@ -542,13 +545,17 @@ pub async fn project_open_unity(
     });
 
     let mut args = vec!["-projectPath".as_ref(), OsStr::new(project_path.as_str())];
+    let config_default_args;
 
     if let Some(custom_args) = &custom_args {
         args.extend(custom_args.iter().map(OsStr::new));
     } else {
-        // TODO: configurable default options?
-        // Note: remember to change similar in typescript
-        args.push(OsStr::new("-debugCodeOptimization"));
+        config_default_args = config.load(&io).await?.default_unity_arguments.clone();
+        if let Some(config_default_args) = &config_default_args {
+            args.extend(config_default_args.iter().map(OsStr::new));
+        } else {
+            args.extend(DEFAULT_UNITY_ARGUMENTS.iter().map(OsStr::new));
+        }
     }
 
     crate::os::start_command("Unity".as_ref(), unity_path.as_ref(), &args).await?;
@@ -617,7 +624,7 @@ fn folder_stream(
     }
 }
 
-async fn create_zip(
+async fn create_backup_zip(
     backup_path: &Path,
     project_path: &Path,
     compression: async_zip::Compression,
@@ -661,6 +668,7 @@ async fn create_zip(
 
     writer.close().await?;
     file.flush().await?;
+    file.sync_data().await?;
     drop(file);
     Ok(())
 }
@@ -727,7 +735,7 @@ pub async fn project_create_backup(
                         .join(&backup_name)
                         .with_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
-                    create_zip(
+                    create_backup_zip(
                         &backup_path,
                         project_path.as_ref(),
                         async_zip::Compression::Stored,
@@ -740,7 +748,7 @@ pub async fn project_create_backup(
                         .join(&backup_name)
                         .with_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
-                    create_zip(
+                    create_backup_zip(
                         &backup_path,
                         project_path.as_ref(),
                         async_zip::Compression::Deflate,
@@ -753,7 +761,7 @@ pub async fn project_create_backup(
                         .join(&backup_name)
                         .with_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
-                    create_zip(
+                    create_backup_zip(
                         &backup_path,
                         project_path.as_ref(),
                         async_zip::Compression::Deflate,
@@ -769,7 +777,7 @@ pub async fn project_create_backup(
                         .with_extension("zip");
 
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
-                    create_zip(
+                    create_backup_zip(
                         &backup_path,
                         project_path.as_ref(),
                         async_zip::Compression::Deflate,
