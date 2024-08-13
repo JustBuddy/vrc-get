@@ -2,17 +2,15 @@ use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 
-use log::info;
-use serde::Serialize;
-use tauri::api::dialog::blocking::FileDialogBuilder;
-use tauri::async_runtime::spawn;
-use tauri::{AppHandle, State};
-use tokio::sync::Mutex;
-
 use crate::commands::prelude::*;
 use crate::commands::DEFAULT_UNITY_ARGUMENTS;
-use crate::config::GuiConfigState;
 use crate::utils::{default_project_path, find_existing_parent_dir_or_home, project_backup_path};
+use log::info;
+use serde::Serialize;
+use tauri::async_runtime::spawn;
+use tauri::{AppHandle, State, Window};
+use tauri_plugin_dialog::DialogExt;
+use vrc_get_vpm::environment::{find_unity_hub, VccDatabaseConnection};
 use vrc_get_vpm::io::DefaultEnvironmentIo;
 use vrc_get_vpm::{VRCHAT_RECOMMENDED_2022_UNITY, VRCHAT_RECOMMENDED_2022_UNITY_HUB_LINK};
 
@@ -26,30 +24,26 @@ pub struct TauriUnityVersions {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_unity_versions(
-    state: State<'_, Mutex<EnvironmentState>>,
+    io: State<'_, DefaultEnvironmentIo>,
 ) -> Result<TauriUnityVersions, RustError> {
-    with_environment!(&state, |environment| {
-        environment.find_unity_hub().await.ok();
+    let connection = VccDatabaseConnection::connect(io.inner()).await?;
 
-        let unity_paths = environment
-            .get_unity_installations()?
-            .iter()
-            .filter_map(|unity| {
-                Some((
-                    unity.path().to_string(),
-                    unity.version()?.to_string(),
-                    unity.loaded_from_hub(),
-                ))
-            })
-            .collect();
-
-        environment.disconnect_litedb();
-
-        Ok(TauriUnityVersions {
-            unity_paths,
-            recommended_version: VRCHAT_RECOMMENDED_2022_UNITY.to_string(),
-            install_recommended_version_link: VRCHAT_RECOMMENDED_2022_UNITY_HUB_LINK.to_string(),
+    let unity_paths = connection
+        .get_unity_installations()?
+        .iter()
+        .filter_map(|unity| {
+            Some((
+                unity.path().to_string(),
+                unity.version()?.to_string(),
+                unity.loaded_from_hub(),
+            ))
         })
+        .collect();
+
+    Ok(TauriUnityVersions {
+        unity_paths,
+        recommended_version: VRCHAT_RECOMMENDED_2022_UNITY.to_string(),
+        install_recommended_version_link: VRCHAT_RECOMMENDED_2022_UNITY_HUB_LINK.to_string(),
     })
 }
 
@@ -69,43 +63,66 @@ pub struct TauriEnvironmentSettings {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_get_settings(
-    state: State<'_, Mutex<EnvironmentState>>,
+    settings: State<'_, SettingsState>,
     config: State<'_, GuiConfigState>,
     io: State<'_, DefaultEnvironmentIo>,
 ) -> Result<TauriEnvironmentSettings, RustError> {
-    let config = config.load(&io).await?;
-    let backup_format = config.backup_format.to_string();
-    let release_channel = config.release_channel.to_string();
-    let use_alcom_for_vcc_protocol = config.use_alcom_for_vcc_protocol;
-    let default_unity_arguments = config.default_unity_arguments.clone();
-    drop(config);
+    let backup_format;
+    let release_channel;
+    let use_alcom_for_vcc_protocol;
+    let default_unity_arguments;
+    let unity_paths;
+    let unity_hub;
+    let default_project_path;
+    let project_backup_path;
+    let show_prerelease_packages;
 
-    with_environment!(&state, |environment| {
-        environment.find_unity_hub().await.ok();
+    {
+        let config = config.get();
+        backup_format = config.backup_format.to_string();
+        release_channel = config.release_channel.to_string();
+        use_alcom_for_vcc_protocol = config.use_alcom_for_vcc_protocol;
+        default_unity_arguments = config.default_unity_arguments.clone();
+    }
 
-        let settings = TauriEnvironmentSettings {
-            default_project_path: default_project_path(environment).await?.to_string(),
-            project_backup_path: project_backup_path(environment).await?.to_string(),
-            unity_hub: environment.unity_hub_path().to_string(),
-            unity_paths: environment
-                .get_unity_installations()?
-                .iter()
-                .filter_map(|unity| {
-                    Some((
-                        unity.path().to_string(),
-                        unity.version()?.to_string(),
-                        unity.loaded_from_hub(),
-                    ))
-                })
-                .collect(),
-            show_prerelease_packages: environment.show_prerelease_packages(),
-            backup_format,
-            release_channel,
-            use_alcom_for_vcc_protocol,
-            default_unity_arguments,
-        };
-        environment.disconnect_litedb();
-        Ok(settings)
+    {
+        let connection = VccDatabaseConnection::connect(io.inner()).await?;
+
+        unity_paths = connection
+            .get_unity_installations()?
+            .iter()
+            .filter_map(|unity| {
+                Some((
+                    unity.path().to_string(),
+                    unity.version()?.to_string(),
+                    unity.loaded_from_hub(),
+                ))
+            })
+            .collect();
+    }
+
+    {
+        let mut settings = settings.load_mut(io.inner()).await?;
+
+        find_unity_hub(&mut settings, io.inner()).await?;
+        unity_hub = settings.unity_hub_path().to_string();
+        default_project_path = crate::utils::default_project_path(&mut settings).to_string();
+        project_backup_path = crate::utils::project_backup_path(&mut settings).to_string();
+        show_prerelease_packages = settings.show_prerelease_packages();
+
+        settings.save().await?;
+    }
+
+    Ok(TauriEnvironmentSettings {
+        default_project_path,
+        project_backup_path,
+        unity_hub,
+        unity_paths,
+        show_prerelease_packages,
+        backup_format,
+        release_channel,
+        use_alcom_for_vcc_protocol,
+        default_unity_arguments,
     })
 }
 
@@ -120,10 +137,13 @@ pub enum TauriPickUnityHubResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_pick_unity_hub(
-    state: State<'_, Mutex<EnvironmentState>>,
+    settings: State<'_, SettingsState>,
+    io: State<'_, DefaultEnvironmentIo>,
+    window: Window,
 ) -> Result<TauriPickUnityHubResult, RustError> {
-    let Some(mut path) = with_environment!(&state, |environment| {
-        let mut unity_hub = Path::new(environment.unity_hub_path());
+    let Some(mut path) = ({
+        let settings = settings.load(io.inner()).await?;
+        let mut unity_hub = Path::new(settings.unity_hub_path());
 
         if cfg!(target_os = "macos") {
             // for macos, select .app file instead of the executable binary inside it
@@ -138,12 +158,12 @@ pub async fn environment_pick_unity_hub(
             }
         }
 
-        let mut builder = FileDialogBuilder::new();
+        let mut builder = window.dialog().file().set_parent(&window);
 
         if unity_hub.parent().is_some() {
             builder = builder
                 .set_directory(unity_hub.parent().unwrap())
-                .set_file_name(&unity_hub.file_name().unwrap().to_string_lossy());
+                .set_file_name(unity_hub.file_name().unwrap().to_string_lossy());
         }
 
         if cfg!(target_os = "macos") {
@@ -154,7 +174,7 @@ pub async fn environment_pick_unity_hub(
             // no extension for executable on linux
         }
 
-        builder.pick_file()
+        builder.blocking_pick_file().map(|x| x.path)
     }) else {
         return Ok(TauriPickUnityHubResult::NoFolderSelected);
     };
@@ -179,10 +199,9 @@ pub async fn environment_pick_unity_hub(
         return Ok(TauriPickUnityHubResult::InvalidSelection);
     };
 
-    with_environment!(&state, |environment| {
-        environment.set_unity_hub_path(&path);
-        environment.save().await?;
-    });
+    let mut settings = settings.load_mut(io.inner()).await?;
+    settings.set_unity_hub_path(&path);
+    settings.save().await?;
 
     Ok(TauriPickUnityHubResult::Successful)
 }
@@ -198,10 +217,11 @@ pub enum TauriPickUnityResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_pick_unity(
-    state: State<'_, Mutex<EnvironmentState>>,
+    io: State<'_, DefaultEnvironmentIo>,
+    window: Window,
 ) -> Result<TauriPickUnityResult, RustError> {
     let Some(mut path) = ({
-        let mut builder = FileDialogBuilder::new();
+        let mut builder = window.dialog().file().set_parent(&window);
         if cfg!(target_os = "macos") {
             builder = builder.add_filter("Application", &["app"]);
         } else if cfg!(target_os = "windows") {
@@ -210,7 +230,7 @@ pub async fn environment_pick_unity(
             // no extension for executable on linux
         }
 
-        builder.pick_file()
+        builder.blocking_pick_file().map(|x| x.path)
     }) else {
         return Ok(TauriPickUnityResult::NoFolderSelected);
     };
@@ -237,14 +257,16 @@ pub async fn environment_pick_unity(
 
     let unity_version = vrc_get_vpm::unity::call_unity_for_version(path.as_ref()).await?;
 
-    with_environment!(&state, |environment| {
-        for x in environment.get_unity_installations()? {
+    {
+        let mut connection = VccDatabaseConnection::connect(io.inner()).await?;
+
+        for x in connection.get_unity_installations()? {
             if x.path() == path {
                 return Ok(TauriPickUnityResult::AlreadyAdded);
             }
         }
 
-        match environment
+        match connection
             .add_unity_installation(&path, unity_version)
             .await
         {
@@ -254,8 +276,9 @@ pub async fn environment_pick_unity(
             Err(e) => return Err(e.into()),
             Ok(_) => {}
         }
-        environment.save().await?;
-    });
+
+        connection.save(io.inner()).await?;
+    }
 
     Ok(TauriPickUnityResult::Successful)
 }
@@ -271,26 +294,32 @@ pub enum TauriPickProjectDefaultPathResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_pick_project_default_path(
-    state: State<'_, Mutex<EnvironmentState>>,
+    settings: State<'_, SettingsState>,
+    io: State<'_, DefaultEnvironmentIo>,
+    window: Window,
 ) -> Result<TauriPickProjectDefaultPathResult, RustError> {
-    let Some(dir) = with_environment!(state, |environment| {
-        FileDialogBuilder::new()
-            .set_directory(find_existing_parent_dir_or_home(
-                default_project_path(environment).await?.as_ref(),
-            ))
-            .pick_folder()
-    }) else {
+    let mut settings = settings.load_mut(io.inner()).await?;
+    let default_project_path = default_project_path(&mut settings);
+    let Some(dir) = window
+        .dialog()
+        .file()
+        .set_parent(&window)
+        .set_directory(find_existing_parent_dir_or_home(
+            default_project_path.as_ref(),
+        ))
+        .blocking_pick_folder()
+    else {
+        settings.maybe_save().await?;
         return Ok(TauriPickProjectDefaultPathResult::NoFolderSelected);
     };
 
     let Ok(dir) = dir.into_os_string().into_string() else {
+        settings.maybe_save().await?;
         return Ok(TauriPickProjectDefaultPathResult::InvalidSelection);
     };
 
-    with_environment!(&state, |environment| {
-        environment.set_default_project_path(&dir);
-        environment.save().await?;
-    });
+    settings.set_default_project_path(&dir);
+    settings.save().await?;
 
     Ok(TauriPickProjectDefaultPathResult::Successful { new_path: dir })
 }
@@ -306,15 +335,21 @@ pub enum TauriPickProjectBackupPathResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_pick_project_backup_path(
-    state: State<'_, Mutex<EnvironmentState>>,
+    settings: State<'_, SettingsState>,
+    io: State<'_, DefaultEnvironmentIo>,
+    window: Window,
 ) -> Result<TauriPickProjectBackupPathResult, RustError> {
-    let Some(dir) = with_environment!(state, |environment| {
-        FileDialogBuilder::new()
-            .set_directory(find_existing_parent_dir_or_home(
-                project_backup_path(environment).await?.as_ref(),
-            ))
-            .pick_folder()
-    }) else {
+    let mut settings = settings.load_mut(io.inner()).await?;
+    let project_backup_path = project_backup_path(&mut settings);
+    let Some(dir) = window
+        .dialog()
+        .file()
+        .set_parent(&window)
+        .set_directory(find_existing_parent_dir_or_home(
+            project_backup_path.as_ref(),
+        ))
+        .blocking_pick_folder()
+    else {
         return Ok(TauriPickProjectBackupPathResult::NoFolderSelected);
     };
 
@@ -322,10 +357,8 @@ pub async fn environment_pick_project_backup_path(
         return Ok(TauriPickProjectBackupPathResult::InvalidSelection);
     };
 
-    with_environment!(&state, |environment| {
-        environment.set_project_backup_path(&dir);
-        environment.save().await?;
-    });
+    settings.set_project_backup_path(&dir);
+    settings.save().await?;
 
     Ok(TauriPickProjectBackupPathResult::Successful)
 }
@@ -333,24 +366,23 @@ pub async fn environment_pick_project_backup_path(
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_set_show_prerelease_packages(
-    state: State<'_, Mutex<EnvironmentState>>,
+    io: State<'_, DefaultEnvironmentIo>,
+    settings: State<'_, SettingsState>,
     value: bool,
 ) -> Result<(), RustError> {
-    with_environment!(&state, |environment| {
-        environment.set_show_prerelease_packages(value);
-        environment.save().await?;
-        Ok(())
-    })
+    let mut settings = settings.load_mut(io.inner()).await?;
+    settings.set_show_prerelease_packages(value);
+    settings.save().await?;
+    Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn environment_set_backup_format(
     config: State<'_, GuiConfigState>,
-    io: State<'_, DefaultEnvironmentIo>,
     backup_format: String,
 ) -> Result<(), RustError> {
-    let mut config = config.load_mut(&io).await?;
+    let mut config = config.load_mut().await?;
     config.backup_format = backup_format;
     config.save().await?;
     Ok(())
@@ -360,10 +392,9 @@ pub async fn environment_set_backup_format(
 #[specta::specta]
 pub async fn environment_set_release_channel(
     config: State<'_, GuiConfigState>,
-    io: State<'_, DefaultEnvironmentIo>,
     release_channel: String,
 ) -> Result<(), RustError> {
-    let mut config = config.load_mut(&io).await?;
+    let mut config = config.load_mut().await?;
     config.release_channel = release_channel;
     config.save().await?;
     Ok(())
@@ -374,10 +405,9 @@ pub async fn environment_set_release_channel(
 pub async fn environment_set_use_alcom_for_vcc_protocol(
     app: AppHandle,
     config: State<'_, GuiConfigState>,
-    io: State<'_, DefaultEnvironmentIo>,
     use_alcom_for_vcc_protocol: bool,
 ) -> Result<(), RustError> {
-    let mut config = config.load_mut(&io).await?;
+    let mut config = config.load_mut().await?;
     info!("setting use_alcom_for_vcc_protocol to {use_alcom_for_vcc_protocol}");
     config.use_alcom_for_vcc_protocol = use_alcom_for_vcc_protocol;
     config.save().await?;
@@ -393,11 +423,9 @@ pub async fn environment_set_use_alcom_for_vcc_protocol(
 #[specta::specta]
 pub async fn environment_get_default_unity_arguments(
     config: State<'_, GuiConfigState>,
-    io: State<'_, DefaultEnvironmentIo>,
 ) -> Result<Vec<String>, RustError> {
     Ok(config
-        .load(&io)
-        .await?
+        .get()
         .default_unity_arguments
         .clone()
         .unwrap_or_else(|| {
@@ -413,10 +441,9 @@ pub async fn environment_get_default_unity_arguments(
 #[specta::specta]
 pub async fn environment_set_default_unity_arguments(
     config: State<'_, GuiConfigState>,
-    io: State<'_, DefaultEnvironmentIo>,
     default_unity_arguments: Option<Vec<String>>,
 ) -> Result<(), RustError> {
-    let mut config = config.load_mut(&io).await?;
+    let mut config = config.load_mut().await?;
     config.default_unity_arguments = default_unity_arguments;
     config.save().await?;
     Ok(())

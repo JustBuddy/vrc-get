@@ -5,13 +5,7 @@ import {
 	DialogOpen,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	environmentUnityVersions,
-	projectGetUnityPath,
-	projectOpenUnity,
-	projectSetUnityPath,
-	utilOpenUrl,
-} from "@/lib/bindings";
+import { commands } from "@/lib/bindings";
 import i18next, { tc } from "@/lib/i18n";
 import { toastError, toastNormal } from "@/lib/toast";
 import { useUnitySelectorDialog } from "@/lib/use-unity-selector-dialog";
@@ -54,8 +48,8 @@ export function useOpenUnity(): Result {
 			return;
 		}
 		const [unityVersions, selectedPath] = await Promise.all([
-			environmentUnityVersions(),
-			projectGetUnityPath(projectPath),
+			commands.environmentUnityVersions(),
+			commands.projectGetUnityPath(projectPath),
 		]);
 		if (unityVersions == null) {
 			toastError(
@@ -91,10 +85,10 @@ export function useOpenUnity(): Result {
 					if (selectedPath) {
 						if (foundVersions[0][0] !== selectedPath) {
 							// if only unity is not
-							void projectSetUnityPath(projectPath, null);
+							void commands.projectSetUnityPath(projectPath, null);
 						}
 					}
-					const result = await projectOpenUnity(
+					const result = await commands.projectOpenUnity(
 						projectPath,
 						foundVersions[0][0],
 					);
@@ -106,7 +100,10 @@ export function useOpenUnity(): Result {
 				if (selectedPath) {
 					const found = foundVersions.find(([p, _v, _i]) => p === selectedPath);
 					if (found) {
-						const result = await projectOpenUnity(projectPath, selectedPath);
+						const result = await commands.projectOpenUnity(
+							projectPath,
+							selectedPath,
+						);
 						if (result)
 							toastNormal(i18next.t("projects:toast:opening unity..."));
 						else toastError(i18next.t("projects:toast:unity already running"));
@@ -116,9 +113,12 @@ export function useOpenUnity(): Result {
 				const selected = await unitySelector.select(foundVersions, true);
 				if (selected == null) return;
 				if (selected.keepUsingThisVersion) {
-					void projectSetUnityPath(projectPath, selected.unityPath);
+					void commands.projectSetUnityPath(projectPath, selected.unityPath);
 				}
-				const result = await projectOpenUnity(projectPath, selected.unityPath);
+				const result = await commands.projectOpenUnity(
+					projectPath,
+					selected.unityPath,
+				);
 				if (result) toastNormal(i18next.t("projects:toast:opening unity..."));
 				else toastError("Unity already running");
 			}
@@ -154,22 +154,22 @@ function UnityInstallWindow({
 	close: () => void;
 }) {
 	const openUnityHub = async () => {
-		await utilOpenUrl(installWithUnityHubLink);
+		await commands.utilOpenUrl(installWithUnityHubLink);
 	};
 
 	return (
 		<DialogOpen>
-			<DialogTitle>{tc("projects:manage:dialog:unity not found")}</DialogTitle>
+			<DialogTitle>{tc("projects:dialog:unity not found")}</DialogTitle>
 			<DialogDescription>
 				<p>
-					{tc("projects:manage:dialog:unity version of the project not found", {
+					{tc("projects:dialog:unity version of the project not found", {
 						unity: expectedVersion,
 					})}
 				</p>
 			</DialogDescription>
 			<DialogFooter className={"gap-2"}>
 				<Button onClick={openUnityHub}>
-					{tc("projects:manage:dialog:open unity hub")}
+					{tc("projects:dialog:open unity hub")}
 				</Button>
 				<Button onClick={close} className="mr-1">
 					{tc("general:button:close")}

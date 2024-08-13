@@ -5,17 +5,34 @@ use std::path::{Path, PathBuf};
 use log::error;
 use serde::Serialize;
 use specta::specta;
-use tauri::{generate_handler, Invoke};
-
 pub use start::startup;
-pub use state::new_env_state;
+use tauri::generate_handler;
+use tauri::ipc::Invoke;
 pub use uri_custom_scheme::handle_vrc_get_scheme;
+use vrc_get_vpm::environment::VccDatabaseConnection;
 use vrc_get_vpm::io::{DefaultEnvironmentIo, DefaultProjectIo};
 use vrc_get_vpm::version::Version;
 use vrc_get_vpm::PackageManifest;
 
-#[macro_use]
-mod state;
+// common macro for commands so put it here
+macro_rules! localizable_error {
+    ($id:literal $(,)?) => {
+        $crate::commands::RustError::Localizable(::std::boxed::Box::new($crate::commands::LocalizableRustError {
+            id: $id.to_string(),
+            args: indexmap::IndexMap::new(),
+        }))
+    };
+
+    ($id:literal, $($key:ident => $value:expr), * $(,)?) => {
+        $crate::commands::RustError::Localizable(::std::boxed::Box::new($crate::commands::LocalizableRustError {
+            id: $id.to_string(),
+            args: indexmap::indexmap! {
+                $(::std::stringify!($key).to_string() => $value.to_string()),*
+            }
+        }))
+    };
+}
+
 mod async_command;
 mod environment;
 mod project;
@@ -24,20 +41,18 @@ mod uri_custom_scheme;
 mod util;
 
 mod prelude {
-    pub use super::state::{EnvironmentState, UpdateRepositoryMode};
     pub(super) use super::{
-        load_project, update_project_last_modified, Environment, RustError, TauriBasePackageInfo,
-        UnityProject,
+        load_project, update_project_last_modified, RustError, TauriBasePackageInfo, UnityProject,
     };
+    pub use crate::state::*;
 }
 
-pub type Environment = vrc_get_vpm::Environment<reqwest::Client, DefaultEnvironmentIo>;
 pub type UnityProject = vrc_get_vpm::UnityProject<DefaultProjectIo>;
 
 // Note: remember to change similar in typescript
 static DEFAULT_UNITY_ARGUMENTS: &[&str] = &["-debugCodeOptimization"];
 
-pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
+pub(crate) fn handlers() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
     generate_handler![
         environment::config::environment_language,
         environment::config::environment_set_language,
@@ -93,6 +108,7 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
         project::project_resolve,
         project::project_remove_packages,
         project::project_apply_pending_changes,
+        project::project_clear_pending_changes,
         project::project_migrate_project_to_2022,
         project::project_call_unity_for_migration,
         project::project_migrate_project_to_vpm,
@@ -119,8 +135,9 @@ pub(crate) fn handlers() -> impl Fn(Invoke) + Send + Sync + 'static {
 #[cfg(dev)]
 pub(crate) fn export_ts() {
     let export_path = "lib/bindings.ts";
-    tauri_specta::ts::export_with_cfg(
-        specta::collect_types![
+    tauri_specta::Builder::new()
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .commands(tauri_specta::collect_commands![
             environment::config::environment_language,
             environment::config::environment_set_language,
             environment::config::environment_theme,
@@ -175,6 +192,7 @@ pub(crate) fn export_ts() {
             project::project_resolve,
             project::project_remove_packages,
             project::project_apply_pending_changes,
+            project::project_clear_pending_changes,
             project::project_migrate_project_to_2022,
             project::project_call_unity_for_migration,
             project::project_migrate_project_to_vpm,
@@ -194,49 +212,25 @@ pub(crate) fn export_ts() {
             util::util_is_bad_hostname,
             crate::deep_link_support::deep_link_has_add_repository,
             crate::deep_link_support::deep_link_take_add_repository,
-            crate::deep_link_support::deep_link_install_vcc,
-        ]
-        .unwrap(),
-        specta::ts::ExportConfiguration::new().bigint(specta::ts::BigIntExportBehavior::Number),
-        export_path,
-    )
-    .unwrap();
-
-    let ts_file = std::fs::read_to_string(export_path).unwrap();
-    let ts_file = ts_file.lines().collect::<Vec<_>>();
-    let export_file_start = ts_file
-        .iter()
-        .position(|x| x.starts_with("export type "))
+            crate::deep_link_support::deep_link_install_vcc //,
+        ])
+        .export(
+            specta_typescript::Typescript::default()
+                .bigint(specta_typescript::BigIntExportBehavior::Number),
+            export_path,
+        )
         .unwrap();
-    let export_file_last = ts_file
-        .iter()
-        .rposition(|x| x.starts_with("export type "))
-        .unwrap();
-
-    let pre_export = &ts_file[..export_file_start];
-    let mut export_range = ts_file[export_file_start..=export_file_last].to_vec();
-    let post_export = &ts_file[export_file_last + 1..];
-
-    // sort by type name
-    export_range.sort();
-
-    let file = [pre_export, &export_range, post_export]
-        .iter()
-        .flat_map(|x| x.iter())
-        .flat_map(|x| [x, "\n"].into_iter())
-        .collect::<String>();
-
-    std::fs::write(export_path, file).unwrap();
 }
 
-async fn update_project_last_modified(env: &mut Environment, project_dir: &Path) {
-    async fn inner(env: &mut Environment, project_dir: &Path) -> Result<(), io::Error> {
-        env.update_project_last_modified(project_dir)?;
-        env.save().await?;
+async fn update_project_last_modified(io: &DefaultEnvironmentIo, project_dir: &Path) {
+    async fn inner(io: &DefaultEnvironmentIo, project_dir: &Path) -> Result<(), io::Error> {
+        let mut connection = VccDatabaseConnection::connect(io).await?;
+        connection.update_project_last_modified(project_dir)?;
+        connection.save(io).await?;
         Ok(())
     }
 
-    if let Err(err) = inner(env, project_dir).await {
+    if let Err(err) = inner(io, project_dir).await {
         eprintln!("error updating project updated_at on vcc: {err}");
     }
 }
@@ -246,6 +240,13 @@ async fn update_project_last_modified(env: &mut Environment, project_dir: &Path)
 #[serde(tag = "type")]
 enum RustError {
     Unrecoverable { message: String },
+    Localizable(Box<LocalizableRustError>),
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+struct LocalizableRustError {
+    id: String,
+    args: indexmap::IndexMap<String, String>,
 }
 
 impl RustError {
