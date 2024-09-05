@@ -10,10 +10,11 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type LogEntry, type LogLevel, commands } from "@/lib/bindings";
+import { isFindKey, useDocumentEvent } from "@/lib/events";
 import globalInfo from "@/lib/global-info";
 import { tc } from "@/lib/i18n";
 import { BugOff, CircleX, Info, OctagonAlert } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 
 export const LogListCard = memo(function LogListCard({
 	logEntry,
@@ -84,10 +85,12 @@ export const LogListCard = memo(function LogListCard({
 
 function LogLevelMenuItem({
 	logLevel,
+	className,
 	shouldShowLogLevel,
 	setShouldShowLogLevel,
 }: {
 	logLevel: LogLevel;
+	className?: string;
 	shouldShowLogLevel: LogLevel[];
 	setShouldShowLogLevel: React.Dispatch<React.SetStateAction<LogLevel[]>>;
 }) {
@@ -119,7 +122,7 @@ function LogLevelMenuItem({
 					onCheckedChange={onChange}
 					className="hover:before:content-none"
 				/>
-				{logLevel}
+				<p className={className}>{logLevel}</p>
 			</label>
 		</DropdownMenuItem>
 	);
@@ -136,6 +139,18 @@ function ManageLogsHeading({
 	shouldShowLogLevel: LogLevel[];
 	setShouldShowLogLevel: React.Dispatch<React.SetStateAction<LogLevel[]>>;
 }) {
+	const searchRef = useRef<HTMLInputElement>(null);
+
+	useDocumentEvent(
+		"keydown",
+		(e) => {
+			if (isFindKey(e)) {
+				searchRef.current?.focus();
+			}
+		},
+		[],
+	);
+
 	return (
 		<div
 			className={
@@ -146,6 +161,7 @@ function ManageLogsHeading({
 				className={"w-max flex-grow"}
 				value={search}
 				onChange={(e) => setSearch(e.target.value)}
+				ref={searchRef}
 			/>
 
 			<DropdownMenu>
@@ -162,16 +178,19 @@ function ManageLogsHeading({
 					/>
 					<LogLevelMenuItem
 						logLevel="Warn"
+						className="text-warning"
 						shouldShowLogLevel={shouldShowLogLevel}
 						setShouldShowLogLevel={setShouldShowLogLevel}
 					/>
 					<LogLevelMenuItem
 						logLevel="Error"
+						className="text-destructive"
 						shouldShowLogLevel={shouldShowLogLevel}
 						setShouldShowLogLevel={setShouldShowLogLevel}
 					/>
 					<LogLevelMenuItem
 						logLevel="Debug"
+						className="text-info"
 						shouldShowLogLevel={shouldShowLogLevel}
 						setShouldShowLogLevel={setShouldShowLogLevel}
 					/>
@@ -204,17 +223,34 @@ const LogRow = memo(function LogRow({
 	log: LogEntry;
 }) {
 	const cellClass = "p-2.5";
-	const typeIconClass = "w-5 h-5";
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
 		return date.toLocaleString();
 	};
 
+	const getFontColorClass = (level: LogLevel) => {
+		switch (level) {
+			case "Info":
+				return "";
+			case "Warn":
+				return "text-warning";
+			case "Error":
+				return "text-destructive";
+			case "Debug":
+				return "text-info";
+			default:
+				return "";
+		}
+	};
+
+	const fontColorClass = getFontColorClass(log.level);
+	const typeIconClass = `${fontColorClass} w-5 h-5`;
+
 	return (
 		<>
 			<td className={`${cellClass} min-w-32 w-32`}>{formatDate(log.time)}</td>
-			<td className={`${cellClass} min-w-32 w-32`}>
+			<td className={`${cellClass} min-w-28 w-28`}>
 				<div className="flex flex-row gap-2">
 					<div className="flex items-center">
 						{log.level === "Info" ? (
@@ -230,7 +266,7 @@ const LogRow = memo(function LogRow({
 						)}
 					</div>
 					<div className="flex flex-col justify-center">
-						<p className="font-normal">{log.level}</p>
+						<p className={`font-normal ${fontColorClass}`}>{log.level}</p>
 					</div>
 				</div>
 			</td>
