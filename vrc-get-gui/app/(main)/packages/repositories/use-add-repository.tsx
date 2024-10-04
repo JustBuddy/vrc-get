@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { assertNever } from "@/lib/assert-never";
-import type { TauriRemoteRepositoryInfo } from "@/lib/bindings";
+import type {
+	TauriDuplicatedReason,
+	TauriRemoteRepositoryInfo,
+} from "@/lib/bindings";
 import { commands } from "@/lib/bindings";
 import { tc, tt } from "@/lib/i18n";
 import { toastError, toastSuccess, toastThrownError } from "@/lib/toast";
@@ -30,6 +33,8 @@ type State =
 	  }
 	| {
 			type: "duplicated";
+			reason: TauriDuplicatedReason;
+			duplicatedName: string;
 	  }
 	| {
 			type: "confirming";
@@ -41,6 +46,7 @@ type State =
 interface AddRepository {
 	dialog: React.ReactNode;
 	openAddDialog: () => void;
+	inProgress: boolean;
 	addRepository: (
 		url: string,
 		headers: { [p: string]: string },
@@ -49,51 +55,64 @@ interface AddRepository {
 
 export function useAddRepository({
 	refetch,
+	onFinishAddRepository,
 }: {
 	refetch: () => void;
+	onFinishAddRepository?: () => void;
 }): AddRepository {
 	const [state, setState] = useState<State>({ type: "normal" });
 
 	function cancel() {
 		setState({ type: "normal" });
+		onFinishAddRepository?.();
 	}
 
 	const openAddDialog = useCallback(() => {
 		setState({ type: "enteringRepositoryInfo" });
 	}, []);
 
-	const addRepository = useCallback(async function addRepository(
-		url: string,
-		headers: { [key: string]: string },
-	) {
-		try {
-			setState({ type: "loadingRepository" });
-			const info = await commands.environmentDownloadRepository(url, headers);
-			switch (info.type) {
-				case "BadUrl":
-					toastError(tt("vpm repositories:toast:invalid url"));
-					setState({ type: "normal" });
-					return;
-				case "DownloadError":
-					toastError(
-						tt("vpm repositories:toast:load failed", { message: info.message }),
-					);
-					setState({ type: "normal" });
-					return;
-				case "Duplicated":
-					setState({ type: "duplicated" });
-					return;
-				case "Success":
-					break;
-				default:
-					assertNever(info, "info");
+	const addRepository = useCallback(
+		async function addRepository(
+			url: string,
+			headers: { [key: string]: string },
+		) {
+			try {
+				setState({ type: "loadingRepository" });
+				const info = await commands.environmentDownloadRepository(url, headers);
+				switch (info.type) {
+					case "BadUrl":
+						toastError(tt("vpm repositories:toast:invalid url"));
+						setState({ type: "normal" });
+						return;
+					case "DownloadError":
+						toastError(
+							tt("vpm repositories:toast:load failed", {
+								message: info.message,
+							}),
+						);
+						setState({ type: "normal" });
+						return;
+					case "Duplicated":
+						setState({
+							type: "duplicated",
+							reason: info.reason,
+							duplicatedName: info.duplicated_name,
+						});
+						return;
+					case "Success":
+						break;
+					default:
+						assertNever(info, "info");
+				}
+				setState({ type: "confirming", repo: info.value, url, headers });
+			} catch (e) {
+				toastThrownError(e);
+				setState({ type: "normal" });
+				onFinishAddRepository?.();
 			}
-			setState({ type: "confirming", repo: info.value, url, headers });
-		} catch (e) {
-			toastThrownError(e);
-			setState({ type: "normal" });
-		}
-	}, []);
+		},
+		[onFinishAddRepository],
+	);
 
 	let dialogBody: React.ReactNode;
 	switch (state.type) {
@@ -112,7 +131,13 @@ export function useAddRepository({
 			dialogBody = <LoadingRepository cancel={cancel} />;
 			break;
 		case "duplicated":
-			dialogBody = <Duplicated cancel={cancel} />;
+			dialogBody = (
+				<Duplicated
+					reason={state.reason}
+					duplicatedName={state.duplicatedName}
+					cancel={cancel}
+				/>
+			);
 			break;
 		case "confirming": {
 			const doAddRepository = async () => {
@@ -122,9 +147,11 @@ export function useAddRepository({
 					toastSuccess(tt("vpm repositories:toast:repository added"));
 					// noinspection ES6MissingAwait
 					refetch();
+					onFinishAddRepository?.();
 				} catch (e) {
 					toastThrownError(e);
 					setState({ type: "normal" });
+					onFinishAddRepository?.();
 				}
 			};
 			dialogBody = (
@@ -152,6 +179,7 @@ export function useAddRepository({
 		dialog,
 		addRepository,
 		openAddDialog,
+		inProgress: state.type !== "normal",
 	};
 }
 
@@ -350,14 +378,39 @@ function LoadingRepository({
 }
 
 function Duplicated({
+	reason,
+	duplicatedName,
 	cancel,
 }: {
+	reason: TauriDuplicatedReason;
+	duplicatedName: string;
 	cancel: () => void;
 }) {
+	const duplicatedDisplayName =
+		duplicatedName === "com.vrchat.repos.curated"
+			? tt("vpm repositories:source:curated")
+			: duplicatedName === "com.vrchat.repos.official"
+				? tt("vpm repositories:source:official")
+				: duplicatedName;
+	let message: React.ReactNode;
+	switch (reason) {
+		case "URLDuplicated":
+			message = tc("vpm repositories:dialog:url duplicated", {
+				name: duplicatedDisplayName,
+			});
+			break;
+		case "IDDuplicated":
+			message = tc("vpm repositories:dialog:id duplicated", {
+				name: duplicatedDisplayName,
+			});
+			break;
+	}
+
 	return (
 		<>
 			<DialogDescription>
 				<p>{tc("vpm repositories:dialog:already added")}</p>
+				<p>{message}</p>
 			</DialogDescription>
 			<DialogFooter>
 				<Button onClick={cancel}>{tc("general:button:ok")}</Button>

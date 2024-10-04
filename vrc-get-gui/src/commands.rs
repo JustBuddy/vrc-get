@@ -16,6 +16,7 @@ use vrc_get_vpm::version::Version;
 use vrc_get_vpm::PackageManifest;
 
 // common macro for commands so put it here
+#[allow(unused_macros)]
 macro_rules! localizable_error {
     ($id:literal $(,)?) => {
         $crate::commands::RustError::Localizable(::std::boxed::Box::new($crate::commands::LocalizableRustError {
@@ -103,6 +104,9 @@ pub(crate) fn handlers() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         environment::settings::environment_set_use_alcom_for_vcc_protocol,
         environment::settings::environment_get_default_unity_arguments,
         environment::settings::environment_set_default_unity_arguments,
+        environment::unity_hub::environment_update_unity_paths_from_unity_hub,
+        environment::unity_hub::environment_is_loading_from_unity_hub_in_progress,
+        environment::unity_hub::environment_wait_for_unity_hub_update,
         project::project_details,
         project::project_install_packages,
         project::project_reinstall_packages,
@@ -186,6 +190,9 @@ pub(crate) fn export_ts() {
             environment::settings::environment_set_use_alcom_for_vcc_protocol,
             environment::settings::environment_get_default_unity_arguments,
             environment::settings::environment_set_default_unity_arguments,
+            environment::unity_hub::environment_update_unity_paths_from_unity_hub,
+            environment::unity_hub::environment_is_loading_from_unity_hub_in_progress,
+            environment::unity_hub::environment_wait_for_unity_hub_update,
             project::project_details,
             project::project_install_packages,
             project::project_reinstall_packages,
@@ -240,7 +247,10 @@ async fn update_project_last_modified(io: &DefaultEnvironmentIo, project_dir: &P
 #[specta(export)]
 #[serde(tag = "type")]
 enum RustError {
-    Unrecoverable { message: String },
+    Unrecoverable {
+        message: String,
+    },
+    #[allow(dead_code)]
     Localizable(Box<LocalizableRustError>),
 }
 
@@ -286,15 +296,7 @@ impl_from_error!(
 
 impl From<AddPackageErr> for RustError {
     fn from(value: AddPackageErr) -> Self {
-        match value {
-            AddPackageErr::InstalledAsUnlocked { package_name } => {
-                localizable_error!(
-                    "projects:manage:toast:package_already_installed_as_unlocked",
-                    package => package_name,
-                )
-            }
-            e => RustError::unrecoverable(e),
-        }
+        RustError::unrecoverable(value)
     }
 }
 

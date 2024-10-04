@@ -17,12 +17,15 @@ The format is based on [Keep a Changelog].
 - User Package Management `#1222`
   - This release adds `vrc-get user-package` subcommands to manage user packages.
 - `vrc-get reinstall <package id>` to reinstall specified packages `#1223`
+- Skipping finding legacy assets when downgrading / upgrading / reinstalling package `#1581`
+  - This will speed up the process of downgrading / upgrading / reinstalling package.
 
 ### Changed
 - Error message will be shown if the SHA256 hash of the downloaded zip file does not match with the hash in the repository `#1183`
   - Currently, official VCC does not verify the hash of the downloaded zip file, but it's better to verify the hash.
   - For compatibility, even if the hash does not match, the file will be extracted with an error message.
   - In the future, we may make this a hard error.
+- Migration feature is no longer marked as experimental `#1559`
 
 ### Deprecated
 

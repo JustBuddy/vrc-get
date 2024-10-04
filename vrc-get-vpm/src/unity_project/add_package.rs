@@ -14,7 +14,6 @@ pub enum AddPackageErr {
     UpgradingNonLockedPackage { package_name: Box<str> },
     DowngradingNonLockedPackage { package_name: Box<str> },
     UpgradingWithDowngrade { package_name: Box<str> },
-    InstalledAsUnlocked { package_name: Box<str> },
 }
 
 impl fmt::Display for AddPackageErr {
@@ -35,10 +34,6 @@ impl fmt::Display for AddPackageErr {
             AddPackageErr::UpgradingWithDowngrade { package_name } => write!(
                 f,
                 "Package {package_name} is locked, so it cannot be downgraded"
-            ),
-            AddPackageErr::InstalledAsUnlocked { package_name } => write!(
-                f,
-                "Package {package_name} is installed as unlocked, so it cannot be installed or upgraded"
             ),
         }
     }
@@ -74,6 +69,8 @@ impl<IO: ProjectIo> UnityProject<IO> {
         let mut changes = super::pending_project_changes::Builder::new();
 
         for &request in packages {
+            debug!("Validating Package: {}", request.name());
+
             {
                 fn install_to_dependencies<'env, IO: ProjectIo>(
                     request: PackageInfo<'env>,
@@ -81,18 +78,6 @@ impl<IO: ProjectIo> UnityProject<IO> {
                     adding_packages: &mut Vec<PackageInfo<'env>>,
                     changes: &mut super::pending_project_changes::Builder,
                 ) -> Result<(), AddPackageErr> {
-                    if this.unlocked_packages.iter().any(|(dir, pkg)| {
-                        dir.as_ref() == request.name()
-                            || pkg
-                                .as_ref()
-                                .map(|x| x.name() == request.name())
-                                .unwrap_or(false)
-                    }) {
-                        return Err(AddPackageErr::InstalledAsUnlocked {
-                            package_name: request.name().into(),
-                        });
-                    }
-
                     let add_to_dependencies = this
                         .manifest
                         .get_dependency(request.name())
@@ -196,6 +181,8 @@ impl<IO: ProjectIo> UnityProject<IO> {
                             None => {
                                 // not installed: install to dependencies
 
+                                debug!("Adding package {} to dependencies", request.name());
+
                                 install_to_dependencies(
                                     request,
                                     self,
@@ -207,6 +194,11 @@ impl<IO: ProjectIo> UnityProject<IO> {
                             Some(locked) => match locked.version().cmp(request.version()) {
                                 std::cmp::Ordering::Less => {
                                     // upgrade
+                                    debug!(
+                                        "Upgrading package {} to version {}",
+                                        request.name(),
+                                        request.version()
+                                    );
                                     upgrade_locked(
                                         request,
                                         self,
@@ -225,6 +217,11 @@ impl<IO: ProjectIo> UnityProject<IO> {
                                 }
                                 std::cmp::Ordering::Greater => {
                                     // downgrade
+                                    debug!(
+                                        "Downgrading package {} to version {}",
+                                        request.name(),
+                                        request.version()
+                                    );
                                     downgrade(request, self, &mut adding_packages, &mut changes)?;
                                 }
                             },
@@ -260,10 +257,15 @@ impl<IO: ProjectIo> UnityProject<IO> {
             }
         }
 
+        debug!("Validation finished");
+
         if adding_packages.is_empty() {
+            debug!("No new packages to add, returning early");
             // early return: nothing new to install
             return Ok(changes.build_no_resolve());
         }
+
+        debug!("Resolving dependencies");
 
         let result = package_resolution::collect_adding_packages(
             self.manifest.dependencies().map(|(name, original_range)| {
@@ -274,7 +276,7 @@ impl<IO: ProjectIo> UnityProject<IO> {
                 }
             }),
             self.manifest.all_locked(),
-            &self.unlocked_packages,
+            self.unlocked_packages.iter(),
             |pkg| self.manifest.get_locked(pkg),
             self.unity_version(),
             env,
@@ -282,11 +284,25 @@ impl<IO: ProjectIo> UnityProject<IO> {
             allow_prerelease,
         )?;
 
-        for x in result.new_packages {
-            changes.install_to_locked(x);
+        debug!("Resolving finished");
+
+        for pkg in result.new_packages {
+            debug!("Installing package {}@{}", pkg.name(), pkg.version());
+            changes.install_to_locked(pkg);
+
+            for (dir, _) in self.unlocked_packages.iter().filter(|(dir, unlocked)| {
+                dir.as_ref() == pkg.name()
+                    || unlocked
+                        .as_ref()
+                        .map(|x| x.name() == pkg.name())
+                        .unwrap_or(false)
+            }) {
+                changes.unlocked_installation_conflict(pkg.name().into(), dir.clone());
+            }
         }
 
         for (package, conflicts_with) in result.conflicts {
+            debug!("package {} conflicts with {:?}", package, conflicts_with);
             changes.conflict_multiple(package, conflicts_with);
         }
 
@@ -295,9 +311,16 @@ impl<IO: ProjectIo> UnityProject<IO> {
             .into_iter()
             .filter(|name| self.is_locked(name))
         {
+            debug!("removing legacy package {}", name);
             changes.remove(name, RemoveReason::Legacy);
         }
 
-        Ok(changes.build_resolve(self).await)
+        debug!("Building changes (finding legacy assets, checking conflicts)");
+
+        let changes = changes.build_resolve(self).await;
+
+        debug!("Resolving finished");
+
+        Ok(changes)
     }
 }

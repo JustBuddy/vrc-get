@@ -44,8 +44,8 @@ async environmentRemoveProject(listVersion: number, index: number, directory: bo
 async environmentRemoveProjectByPath(path: string, directory: boolean) : Promise<null> {
     return await TAURI_INVOKE("environment_remove_project_by_path", { path, directory });
 },
-async environmentCopyProjectForMigration(sourcePath: string) : Promise<string> {
-    return await TAURI_INVOKE("environment_copy_project_for_migration", { sourcePath });
+async environmentCopyProjectForMigration(channel: string, sourcePath: string) : Promise<AsyncCallResult<TauriCopyProjectForMigrationProgress, string>> {
+    return await TAURI_INVOKE("environment_copy_project_for_migration", { channel, sourcePath });
 },
 async environmentSetFavoriteProject(listVersion: number, index: number, favorite: boolean) : Promise<null> {
     return await TAURI_INVOKE("environment_set_favorite_project", { listVersion, index, favorite });
@@ -146,6 +146,15 @@ async environmentGetDefaultUnityArguments() : Promise<string[]> {
 async environmentSetDefaultUnityArguments(defaultUnityArguments: string[] | null) : Promise<null> {
     return await TAURI_INVOKE("environment_set_default_unity_arguments", { defaultUnityArguments });
 },
+async environmentUpdateUnityPathsFromUnityHub() : Promise<boolean> {
+    return await TAURI_INVOKE("environment_update_unity_paths_from_unity_hub");
+},
+async environmentIsLoadingFromUnityHubInProgress() : Promise<boolean> {
+    return await TAURI_INVOKE("environment_is_loading_from_unity_hub_in_progress");
+},
+async environmentWaitForUnityHubUpdate() : Promise<void> {
+    await TAURI_INVOKE("environment_wait_for_unity_hub_update");
+},
 async projectDetails(projectPath: string) : Promise<TauriProjectDetails> {
     return await TAURI_INVOKE("project_details", { projectPath });
 },
@@ -182,7 +191,7 @@ async projectOpenUnity(projectPath: string, unityPath: string) : Promise<boolean
 async projectIsUnityLaunching(projectPath: string) : Promise<boolean> {
     return await TAURI_INVOKE("project_is_unity_launching", { projectPath });
 },
-async projectCreateBackup(channel: string, projectPath: string) : Promise<AsyncCallResult<null, null>> {
+async projectCreateBackup(channel: string, projectPath: string) : Promise<AsyncCallResult<TauriCreateBackupProgress, null>> {
     return await TAURI_INVOKE("project_create_backup", { channel, projectPath });
 },
 async projectGetCustomUnityArgs(projectPath: string) : Promise<string[] | null> {
@@ -254,9 +263,12 @@ export type TauriAddRepositoryResult = "BadUrl" | "Success"
 export type TauriAddUserPackageWithPickerResult = "NoFolderSelected" | "InvalidSelection" | "AlreadyAdded" | "Successful"
 export type TauriBasePackageInfo = { name: string; display_name: string | null; description: string | null; aliases: string[]; version: TauriVersion; unity: [number, number] | null; changelog_url: string | null; vpm_dependencies: string[]; legacy_packages: string[]; is_yanked: boolean }
 export type TauriCallUnityForMigrationResult = { type: "ExistsWithNonZero"; status: string } | { type: "FinishedSuccessfully" }
-export type TauriConflictInfo = { packages: string[]; unity_conflict: boolean }
+export type TauriConflictInfo = { packages: string[]; unity_conflict: boolean; unlocked_names: string[] }
+export type TauriCopyProjectForMigrationProgress = { total: number; proceed: number; last_proceed: string }
+export type TauriCreateBackupProgress = { total: number; proceed: number; last_proceed: string }
 export type TauriCreateProjectResult = "AlreadyExists" | "TemplateNotFound" | "Successful"
-export type TauriDownloadRepository = { type: "BadUrl" } | { type: "Duplicated" } | { type: "DownloadError"; message: string } | { type: "Success"; value: TauriRemoteRepositoryInfo }
+export type TauriDownloadRepository = { type: "BadUrl" } | { type: "Duplicated"; reason: TauriDuplicatedReason; duplicated_name: string } | { type: "DownloadError"; message: string } | { type: "Success"; value: TauriRemoteRepositoryInfo }
+export type TauriDuplicatedReason = "URLDuplicated" | "IDDuplicated"
 export type TauriEnvironmentSettings = { default_project_path: string; project_backup_path: string; unity_hub: string; unity_paths: ([string, string, boolean])[]; show_prerelease_packages: boolean; backup_format: string; release_channel: string; use_alcom_for_vcc_protocol: boolean; default_unity_arguments: string[] | null }
 export type TauriImportRepositoryPickResult = { type: "NoFilePicked" } | { type: "ParsedRepositories"; repositories: TauriRepositoryDescriptor[]; unparsable_lines: string[] }
 export type TauriPackage = ({ name: string; display_name: string | null; description: string | null; aliases: string[]; version: TauriVersion; unity: [number, number] | null; changelog_url: string | null; vpm_dependencies: string[]; legacy_packages: string[]; is_yanked: boolean }) & { env_version: number; index: number; source: TauriPackageSource }
@@ -298,7 +310,7 @@ type __EventObj__<T> = {
 	once: (
 		cb: TAURI_API_EVENT.EventCallback<T>,
 	) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
-	emit: T extends null
+	emit: null extends T
 		? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
 		: (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
 };

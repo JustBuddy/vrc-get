@@ -74,10 +74,11 @@
 		@apply bg-background text-foreground;
 		color: hsl(var(--foreground));
 		background: linear-gradient(
-			to bottom,
-			transparent,
-			hsl(var(--background-end))
-		) hsl(var(--background-start));
+				to bottom,
+				transparent,
+				hsl(var(--background-end))
+			)
+			hsl(var(--background-start));
 	}
 }
 
@@ -159,4 +160,21 @@ body {
 /* Radix ui sets display:block for each scroll viewport element but it seem it make worse */
 [data-radix-scroll-area-viewport] > div {
 	display: block !important;
+}
+
+
+/*
+ * Add padding end for horizontal scroll bar of scrollable card if vertical scroll bar is invisible
+ * This prevents the horizontal scroll bar hide corner of the card
+ */
+.vrc-get-scrollable-card:not(:has(> .vrc-get-scrollable-card-vertical-bar))
+	> div[data-radix-scroll-area-viewport]
+	> div
+	> div.vrc-get-scrollable-card-horizontal-bar {
+	@apply pe-2.5;
+}
+
+.vrc-get-sidebar-hostname-warning-container {
+	contain-intrinsic-size: 0 7em;
+	contain: size;
 }
