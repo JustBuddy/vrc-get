@@ -17,7 +17,7 @@ use vrc_get_vpm::unity_project::{AddPackageOperation, PendingProjectChanges};
 use crate::commands::async_command::*;
 use crate::commands::prelude::*;
 use crate::commands::DEFAULT_UNITY_ARGUMENTS;
-use crate::utils::{collect_notable_project_files_tree, project_backup_path};
+use crate::utils::{collect_notable_project_files_tree, project_backup_path, PathExt};
 
 #[derive(Serialize, specta::Type)]
 pub struct TauriProjectDetails {
@@ -619,7 +619,7 @@ pub async fn project_create_backup(
                 timestamp = chrono::Utc::now().format("%Y-%m-%dT%H-%M-%S"),
             );
 
-            tokio::fs::create_dir_all(&backup_dir).await?;
+            super::create_dir_all_with_err(&backup_dir).await?;
 
             log::info!("backup project: {project_name} with {backup_format}");
             let timer = std::time::Instant::now();
@@ -630,7 +630,7 @@ pub async fn project_create_backup(
                 "default" | "zip-store" => {
                     backup_path = Path::new(&backup_dir)
                         .join(&backup_name)
-                        .with_extension("zip");
+                        .with_added_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
                     create_backup_zip(
                         &backup_path,
@@ -644,7 +644,7 @@ pub async fn project_create_backup(
                 "zip-fast" => {
                     backup_path = Path::new(&backup_dir)
                         .join(&backup_name)
-                        .with_extension("zip");
+                        .with_added_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
                     create_backup_zip(
                         &backup_path,
@@ -658,7 +658,7 @@ pub async fn project_create_backup(
                 "zip-best" => {
                     backup_path = Path::new(&backup_dir)
                         .join(&backup_name)
-                        .with_extension("zip");
+                        .with_added_extension("zip");
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
                     create_backup_zip(
                         &backup_path,
@@ -674,7 +674,7 @@ pub async fn project_create_backup(
 
                     backup_path = Path::new(&backup_dir)
                         .join(&backup_name)
-                        .with_extension("zip");
+                        .with_added_extension("zip");
 
                     remove_on_drop = RemoveOnDrop::new(&backup_path);
                     create_backup_zip(

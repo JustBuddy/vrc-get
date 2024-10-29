@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog].
 - Added many logs for installing package `#1557`
 - Migration feature is no longer marked as experimental `#1559`
 - Several UX improvements `#1561` `#1565` `#1569` `#1571` `#1573`
+- Added more error log `#1652`
+- Improved error message when specified drive not found `#1653`
 
 ### Deprecated
 
@@ -29,6 +31,10 @@ The format is based on [Keep a Changelog].
 
 ### Fixed
 - Clicking VCC link while adding vpm repository would close previously opened add repository dialog `#1570`
+- Opnening Templetes directory might fails `#1641`
+- Backup file name is incorrect if project name contains '.' `#1648`
+- Error creating project if the project path is "C:" `#1651`
+- "missing field Verison" error if some unity version is missing `#1654`
 
 ### Security
 
