@@ -1,6 +1,6 @@
 use crate::traits::PackageCollection;
-use crate::unity_project::{AddPackageErr, LockedDependencyInfo};
-use crate::version::{DependencyRange, UnityVersion, Version, VersionRange};
+use crate::unity_project::LockedDependencyInfo;
+use crate::version::{DependencyRange, PrereleaseAcceptance, UnityVersion, Version, VersionRange};
 use crate::{PackageInfo, PackageManifest, VersionSelector};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -300,7 +300,8 @@ where
         }
 
         let mut install = true;
-        let allow_prerelease = entry.allow_pre || self.allow_prerelease;
+        let allow_prerelease =
+            PrereleaseAcceptance::allow_or_minimum(entry.allow_pre || self.allow_prerelease);
 
         if let Some(pending) = self.pending_queue.find_pending_package(name) {
             if range.match_pre(pending.version(), allow_prerelease) {
@@ -340,7 +341,12 @@ impl<'env> ResolutionContext<'env, '_> {
                                 .unwrap_or_default()
                         })
                         .filter(|(_, range)| {
-                            !range.match_pre(version, info.allow_pre || self.allow_prerelease)
+                            !range.match_pre(
+                                version,
+                                PrereleaseAcceptance::allow_or_minimum(
+                                    info.allow_pre || self.allow_prerelease,
+                                ),
+                            )
                         })
                         .map(|(source, _)| *source)
                         .collect::<Vec<_>>();
@@ -390,6 +396,30 @@ pub struct PackageResolutionResult<'env> {
     pub found_legacy_packages: Vec<Box<str>>,
 }
 
+pub struct MissingDependencies {
+    pub dependencies: HashSet<Box<str>>,
+}
+
+impl MissingDependencies {
+    pub fn new() -> Self {
+        Self {
+            dependencies: HashSet::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.dependencies.is_empty()
+    }
+
+    pub fn add(&mut self, dependency: &str) {
+        self.dependencies.insert(dependency.into());
+    }
+
+    pub fn into_vec(self) -> Vec<Box<str>> {
+        self.dependencies.into_iter().collect()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn collect_adding_packages<'a, 'env>(
     dependencies: impl Iterator<Item = (&'a str, &'a DependencyRange)>,
@@ -400,7 +430,8 @@ pub(crate) fn collect_adding_packages<'a, 'env>(
     env: &'env impl PackageCollection,
     packages: Vec<PackageInfo<'env>>,
     allow_prerelease: bool,
-) -> Result<PackageResolutionResult<'env>, AddPackageErr> {
+    missing_dependencies: &mut MissingDependencies,
+) -> PackageResolutionResult<'env> {
     let mut context = ResolutionContext::<'env, '_>::new(allow_prerelease, packages);
 
     // first, add dependencies
@@ -461,40 +492,72 @@ pub(crate) fn collect_adding_packages<'a, 'env>(
                         dependency: &str,
                         unity_version: Option<UnityVersion>,
                         range: &VersionRange,
-                        allow_prerelease: bool,
+                        allow_prerelease: PrereleaseAcceptance,
                     ) -> Option<PackageInfo<'env>> {
                         env.find_package_by_name(
                             dependency,
                             VersionSelector::range_for(unity_version, range, allow_prerelease),
                         )
-                        .or_else(|| {
-                            env.find_package_by_name(
-                                dependency,
-                                VersionSelector::range_for(None, range, allow_prerelease),
-                            )
-                        })
                     }
 
-                    let mut found;
-                    if allow_prerelease {
-                        found = get_package(env, dependency, unity_version, range, true);
-                    } else {
-                        found = get_package(env, dependency, unity_version, range, false);
-                        if found.is_none() && x.version().is_pre() {
-                            found = get_package(env, dependency, None, range, true);
+                    struct PackageFinder<'env, 'a, C: PackageCollection> {
+                        dependency: &'a str,
+                        env: &'env C,
+                        range: &'env VersionRange,
+                    }
+
+                    impl<'env, C: PackageCollection> PackageFinder<'env, '_, C> {
+                        fn find(
+                            &self,
+                            unity_version: Option<UnityVersion>,
+                            allow_prerelease: PrereleaseAcceptance,
+                        ) -> Option<PackageInfo<'env>> {
+                            get_package(
+                                self.env,
+                                self.dependency,
+                                unity_version,
+                                self.range,
+                                allow_prerelease,
+                            )
                         }
                     }
 
-                    let found = found.ok_or_else(|| AddPackageErr::DependencyNotFound {
-                        dependency_name: dependency.clone(),
-                    })?;
+                    let finder = PackageFinder {
+                        dependency,
+                        env,
+                        range,
+                    };
 
-                    // remove existing if existing
-                    context.pending_queue.add_pending_package(found);
+                    let found;
+                    if allow_prerelease {
+                        // prerelease is allowed, so we find the best match
+                        found = (finder.find(unity_version, PrereleaseAcceptance::Allow))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Allow));
+                    } else if x.version().is_pre() {
+                        // if the package is prerelease, allow prerelease, but prefer stable
+                        found = (finder.find(unity_version, PrereleaseAcceptance::Deny))
+                            .or_else(|| finder.find(unity_version, PrereleaseAcceptance::Minimum))
+                            .or_else(|| finder.find(unity_version, PrereleaseAcceptance::Allow))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Deny))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Minimum))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Allow));
+                    } else {
+                        // if the package is stable, prefer stable, and allow minimum
+                        found = (finder.find(unity_version, PrereleaseAcceptance::Deny))
+                            .or_else(|| finder.find(unity_version, PrereleaseAcceptance::Minimum))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Deny))
+                            .or_else(|| finder.find(None, PrereleaseAcceptance::Minimum));
+                    }
+
+                    if let Some(found) = found {
+                        context.pending_queue.add_pending_package(found);
+                    } else {
+                        missing_dependencies.add(dependency);
+                    }
                 }
             }
         }
     }
 
-    Ok(context.build_result())
+    context.build_result()
 }

@@ -32,6 +32,18 @@ async environmentFinishedSetupPage(page: SetupPages) : Promise<null> {
 async environmentClearSetupProcess() : Promise<null> {
     return await TAURI_INVOKE("environment_clear_setup_process");
 },
+async environmentLogsLevel() : Promise<LogLevel[]> {
+    return await TAURI_INVOKE("environment_logs_level");
+},
+async environmentSetLogsLevel(logsLevel: LogLevel[]) : Promise<null> {
+    return await TAURI_INVOKE("environment_set_logs_level", { logsLevel });
+},
+async environmentGuiAnimation() : Promise<boolean> {
+    return await TAURI_INVOKE("environment_gui_animation");
+},
+async environmentSetGuiAnimation(guiAnimation: boolean) : Promise<null> {
+    return await TAURI_INVOKE("environment_set_gui_animation", { guiAnimation });
+},
 async environmentProjects() : Promise<TauriProject[]> {
     return await TAURI_INVOKE("environment_projects");
 },
@@ -251,12 +263,16 @@ async deepLinkInstallVcc() : Promise<void> {
 export type AddRepositoryInfo = { url: string; headers: { [key in string]: string } }
 export type AsyncCallResult<P, R> = { type: "Result"; value: R } | { type: "Started" } | { type: "UnusedProgress"; progress: P }
 export type CheckForUpdateResponse = { version: number; current_version: string; latest_version: string; update_description: string | null }
+/**
+ * Errors that is expected to be handled on the GUI side
+ */
+export type HandleableRustError = { type: "MissingDependencies"; dependencies: string[] }
 export type InstallUpgradeProgress = { type: "DownloadProgress"; received: number; total: number | null } | { type: "DownloadComplete" }
 export type LocalizableRustError = { id: string; args: { [key in string]: string } }
 export type LogEntry = { time: string; level: LogLevel; target: string; message: string; gui_toast: boolean }
 export type LogLevel = "Error" | "Warn" | "Info" | "Debug" | "Trace"
 export type OpenOptions = "ErrorIfNotExists" | "CreateFolderIfNotExists" | "OpenParentIfNotExists"
-export type RustError = { type: "Unrecoverable"; message: string } | ({ type: "Localizable" } & LocalizableRustError)
+export type RustError = { type: "Unrecoverable"; message: string } | ({ type: "Localizable" } & LocalizableRustError) | { type: "Handleable"; message: string; body: HandleableRustError }
 export type SetupPages = "Appearance" | "UnityHub" | "ProjectPath" | "Backups" | "SystemSetting"
 export type TauriAddProjectWithPickerResult = "NoFolderSelected" | "InvalidSelection" | "AlreadyAdded" | "Successful"
 export type TauriAddRepositoryResult = "BadUrl" | "Success"
@@ -269,7 +285,7 @@ export type TauriCreateBackupProgress = { total: number; proceed: number; last_p
 export type TauriCreateProjectResult = "AlreadyExists" | "TemplateNotFound" | "Successful"
 export type TauriDownloadRepository = { type: "BadUrl" } | { type: "Duplicated"; reason: TauriDuplicatedReason; duplicated_name: string } | { type: "DownloadError"; message: string } | { type: "Success"; value: TauriRemoteRepositoryInfo }
 export type TauriDuplicatedReason = "URLDuplicated" | "IDDuplicated"
-export type TauriEnvironmentSettings = { default_project_path: string; project_backup_path: string; unity_hub: string; unity_paths: ([string, string, boolean])[]; show_prerelease_packages: boolean; backup_format: string; release_channel: string; use_alcom_for_vcc_protocol: boolean; default_unity_arguments: string[] | null }
+export type TauriEnvironmentSettings = { default_project_path: string; project_backup_path: string; unity_hub: string; unity_paths: ([string, string, boolean])[]; show_prerelease_packages: boolean; backup_format: string; release_channel: string; use_alcom_for_vcc_protocol: boolean; default_unity_arguments: string[] | null; gui_animation: boolean }
 export type TauriImportRepositoryPickResult = { type: "NoFilePicked" } | { type: "ParsedRepositories"; repositories: TauriRepositoryDescriptor[]; unparsable_lines: string[] }
 export type TauriPackage = ({ name: string; display_name: string | null; description: string | null; aliases: string[]; version: TauriVersion; unity: [number, number] | null; changelog_url: string | null; vpm_dependencies: string[]; legacy_packages: string[]; is_yanked: boolean }) & { env_version: number; index: number; source: TauriPackageSource }
 export type TauriPackageChange = { InstallNew: TauriBasePackageInfo } | { Remove: TauriRemoveReason }

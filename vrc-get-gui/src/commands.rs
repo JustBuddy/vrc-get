@@ -11,7 +11,9 @@ use tauri::ipc::Invoke;
 pub use uri_custom_scheme::handle_vrc_get_scheme;
 use vrc_get_vpm::environment::VccDatabaseConnection;
 use vrc_get_vpm::io::{DefaultEnvironmentIo, DefaultProjectIo};
-use vrc_get_vpm::unity_project::AddPackageErr;
+use vrc_get_vpm::unity_project::{
+    AddPackageErr, MigrateUnity2022Error, MigrateVpmError, ReinstalPackagesError, ResolvePackageErr,
+};
 use vrc_get_vpm::version::Version;
 use vrc_get_vpm::PackageManifest;
 
@@ -53,7 +55,7 @@ mod prelude {
 pub type UnityProject = vrc_get_vpm::UnityProject<DefaultProjectIo>;
 
 // Note: remember to change similar in typescript
-static DEFAULT_UNITY_ARGUMENTS: &[&str] = &["-debugCodeOptimization"];
+static DEFAULT_UNITY_ARGUMENTS: &[&str] = &[];
 
 pub(crate) fn handlers() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
     generate_handler![
@@ -66,6 +68,10 @@ pub(crate) fn handlers() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         environment::config::environment_get_finished_setup_pages,
         environment::config::environment_finished_setup_page,
         environment::config::environment_clear_setup_process,
+        environment::config::environment_logs_level,
+        environment::config::environment_set_logs_level,
+        environment::config::environment_gui_animation,
+        environment::config::environment_set_gui_animation,
         environment::projects::environment_projects,
         environment::projects::environment_add_project_with_picker,
         environment::projects::environment_remove_project,
@@ -152,6 +158,10 @@ pub(crate) fn export_ts() {
             environment::config::environment_get_finished_setup_pages,
             environment::config::environment_finished_setup_page,
             environment::config::environment_clear_setup_process,
+            environment::config::environment_logs_level,
+            environment::config::environment_set_logs_level,
+            environment::config::environment_gui_animation,
+            environment::config::environment_set_gui_animation,
             environment::projects::environment_projects,
             environment::projects::environment_add_project_with_picker,
             environment::projects::environment_remove_project,
@@ -252,6 +262,10 @@ enum RustError {
     },
     #[allow(dead_code)]
     Localizable(Box<LocalizableRustError>),
+    Handleable {
+        message: String,
+        body: HandleableRustError,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -260,12 +274,31 @@ struct LocalizableRustError {
     args: indexmap::IndexMap<String, String>,
 }
 
+/// Errors that is expected to be handled on the GUI side
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(tag = "type")]
+enum HandleableRustError {
+    MissingDependencies { dependencies: Vec<Box<str>> },
+}
+
 impl RustError {
     fn unrecoverable<T: Display>(value: T) -> Self {
         error!("{value}");
         Self::Unrecoverable {
             message: value.to_string(),
         }
+    }
+
+    fn handleable(message: String, body: HandleableRustError) -> Self {
+        error!(gui_toast = false; "{message}");
+        Self::Handleable { message, body }
+    }
+
+    fn handleable_missing_dependencies(message: String, dependencies: Vec<Box<str>>) -> Self {
+        Self::handleable(
+            message,
+            HandleableRustError::MissingDependencies { dependencies },
+        )
     }
 }
 
@@ -288,15 +321,60 @@ impl_from_error!(
     tauri_plugin_updater::Error,
     vrc_get_vpm::environment::AddRepositoryErr,
     vrc_get_vpm::unity_project::RemovePackageErr,
-    vrc_get_vpm::unity_project::MigrateVpmError,
-    vrc_get_vpm::unity_project::MigrateUnity2022Error,
-    vrc_get_vpm::unity_project::ReinstalPackagesError,
     fs_extra::error::Error,
 );
 
+impl From<MigrateVpmError> for RustError {
+    fn from(value: MigrateVpmError) -> Self {
+        match value {
+            MigrateVpmError::AddPackageErr(add_err) => add_err.into(),
+            value => RustError::unrecoverable(value),
+        }
+    }
+}
+
+impl From<MigrateUnity2022Error> for RustError {
+    fn from(value: MigrateUnity2022Error) -> Self {
+        match value {
+            MigrateUnity2022Error::AddPackageErr(add_err) => add_err.into(),
+            value => RustError::unrecoverable(value),
+        }
+    }
+}
+
+impl From<ReinstalPackagesError> for RustError {
+    fn from(value: ReinstalPackagesError) -> Self {
+        let message = value.to_string();
+        match value {
+            ReinstalPackagesError::DependenciesNotFound { dependencies } => {
+                RustError::handleable_missing_dependencies(message, dependencies)
+            }
+            _ => RustError::unrecoverable(message),
+        }
+    }
+}
+
 impl From<AddPackageErr> for RustError {
     fn from(value: AddPackageErr) -> Self {
-        RustError::unrecoverable(value)
+        let message = value.to_string();
+        match value {
+            AddPackageErr::DependenciesNotFound { dependencies } => {
+                RustError::handleable_missing_dependencies(message, dependencies)
+            }
+            _ => RustError::unrecoverable(message),
+        }
+    }
+}
+
+impl From<ResolvePackageErr> for RustError {
+    fn from(value: ResolvePackageErr) -> Self {
+        let message = value.to_string();
+        match value {
+            ResolvePackageErr::DependenciesNotFound { dependencies } => {
+                RustError::handleable_missing_dependencies(message, dependencies)
+            }
+            _ => RustError::unrecoverable(message),
+        }
     }
 }
 
