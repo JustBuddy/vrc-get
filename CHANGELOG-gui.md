@@ -10,11 +10,11 @@ The format is based on [Keep a Changelog].
 ### Added
 
 ### Changed
-- Several GUI improvements [`#1672`](https://github.com/vrc-get/vrc-get/pull/1672)
+- Several GUI improvements `#1672` `#1771` `#1775` `#1772`
 - Removed `-debugCodeOptimization` from default unity arguments `#1742`
 - Projects that failes to resolve will also be added to Project List now `#1748`
   - Previsously project dir is created but not added to list
-- Dialog is shown when some installing packages are not found `#1749`
+- Dialog is shown when some installing packages are not found `#1749` `#1776`
   - The new dialog also suggest you to google & add repository for the package
   - Previously the first package we could not found are shown on the error toast but now collect and show missing packages as many as possible
 
