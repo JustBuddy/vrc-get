@@ -1,7 +1,7 @@
 "use client";
 
 import Loading from "@/app/loading";
-import { CheckForUpdateMessage } from "@/components/CheckForUpdateMessage";
+//import { CheckForUpdateMessage } from "@/components/CheckForUpdateMessage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CheckForUpdateResponse, LogEntry } from "@/lib/bindings";
 import { commands } from "@/lib/bindings";
@@ -113,12 +113,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
 			/>
 			<QueryClientProvider client={queryClient}>
 				<TooltipProvider>
-					{updateState && (
-						<CheckForUpdateMessage
-							response={updateState}
-							close={() => setUpdateState(null)}
-						/>
-					)}
 					<div lang={i18n.language} className="contents">
 						<Suspense fallback={<Loading />}>{children}</Suspense>
 					</div>
