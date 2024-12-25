@@ -1,7 +1,6 @@
 "use client";
 
 import Loading from "@/app/loading";
-import { CheckForUpdateMessage } from "@/components/CheckForUpdateMessage";
 import { ScrollPageContainer } from "@/components/ScrollPageContainer";
 import { ScrollableCardTable } from "@/components/ScrollableCardTable";
 import {
@@ -580,44 +579,6 @@ function AlcomCard({
 	);
 	const globalInfo = useGlobalInfo();
 
-	const checkForUpdate = async () => {
-		try {
-			const checkVersion = await commands.utilCheckForUpdate();
-			if (checkVersion) {
-				setUpdateState(checkVersion);
-			} else {
-				toastNormal(tc("check update:toast:no updates"));
-			}
-		} catch (e) {
-			toastThrownError(e);
-			console.error(e);
-		}
-	};
-
-	const reportIssue = async () => {
-		const url = new URL("https://github.com/vrc-get/vrc-get/issues/new");
-		url.searchParams.append("labels", "bug,vrc-get-gui");
-		url.searchParams.append("template", "01_gui_bug-report.yml");
-		url.searchParams.append("os", `${globalInfo.osInfo} - ${globalInfo.arch}`);
-		url.searchParams.append("webview-version", `${globalInfo.webviewVersion}`);
-		let version = globalInfo.version ?? "unknown";
-		if (globalInfo.commitHash) {
-			version += ` (${globalInfo.commitHash})`;
-		} else {
-			version += " (unknown commit)";
-		}
-		url.searchParams.append("version", version);
-
-		void commands.utilOpenUrl(url.toString());
-	};
-
-	const changeReleaseChannel = async (value: "indeterminate" | boolean) => {
-		await commands.environmentSetReleaseChannel(
-			value === true ? "beta" : "stable",
-		);
-		refetch();
-	};
-
 	const changeUseAlcomForVcc = async (value: "indeterminate" | boolean) => {
 		await commands.environmentSetUseAlcomForVccProtocol(value === true);
 		refetch();
@@ -635,37 +596,9 @@ function AlcomCard({
 
 	return (
 		<Card className={"flex-shrink-0 p-4 flex flex-col gap-4"}>
-			{updateState && (
-				<CheckForUpdateMessage
-					response={updateState}
-					close={() => setUpdateState(null)}
-				/>
-			)}
 			<h2>ALCOM</h2>
 			<div className={"flex flex-row flex-wrap gap-2"}>
-				{globalInfo.checkForUpdates && (
-					<Button onClick={checkForUpdate}>
-						{tc("settings:check update")}
-					</Button>
-				)}
-				<Button onClick={reportIssue}>
-					{tc("settings:button:open issue")}
-				</Button>
 			</div>
-			{globalInfo.checkForUpdates && (
-				<div>
-					<label className={"flex items-center gap-2"}>
-						<Checkbox
-							checked={releaseChannel === "beta"}
-							onCheckedChange={(e) => changeReleaseChannel(e)}
-						/>
-						{tc("settings:receive beta updates")}
-					</label>
-					<p className={"text-sm whitespace-normal"}>
-						{tc("settings:beta updates description")}
-					</p>
-				</div>
-			)}
 			{!isMac && (
 				<div>
 					<label className={"flex items-center gap-2"}>

@@ -82,6 +82,7 @@ export function SideBar({ className }: { className?: string }) {
 				>
 					{globalInfo.version ? `v${globalInfo.version}` : "unknown"}
 				</Button>
+				<a href="https://buddyworks.wtf" target="_blank"><img src="/bwtext.png" width="100%"/></a>
 			</div>
 		</Card>
 	);
