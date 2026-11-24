@@ -50,7 +50,8 @@ function load(): GlobalInfo {
 
 function onload(info: Readonly<GlobalInfo>) {
 	document.documentElement.setAttribute("lang", info.language);
-	document.documentElement.setAttribute("class", info.theme);
+	// BUDDYWORKS is dark-only; the saved theme setting is ignored
+	document.documentElement.setAttribute("class", "dark");
 }
 
 export default globalInfo;

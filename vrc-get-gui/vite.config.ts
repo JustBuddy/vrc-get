@@ -58,6 +58,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@/app": path.join(__dirname, "./app"),
+			"@/assets": path.join(__dirname, "./assets"),
 			"@/components": path.join(__dirname, "./components"),
 			"@/lib": path.join(__dirname, "./lib"),
 			"@/locales": path.join(__dirname, "./locales"),

@@ -102,6 +102,8 @@ pub fn startup(app: &mut App) {
             tauri::WebviewUrl::App(start_page.into()),
         )
         .title("ALCOM")
+        // BUDDYWORKS is dark-only, so the native title bar is too
+        .theme(Some(tauri::Theme::Dark))
         .resizable(true)
         // the window is shown after restoring the position to avoid flickering
         .visible(false)

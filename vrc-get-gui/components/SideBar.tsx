@@ -25,11 +25,12 @@ import {
 	Wrench,
 } from "lucide-react";
 import type React from "react";
+import bwMark from "@/assets/bwmark.png";
+import bwText from "@/assets/bwtext.png";
 import {
 	GuiAnimationSwitch,
 	GuiCompactSwitch,
 	LanguageSelector,
-	ThemeSelector,
 } from "@/components/common-setting-parts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -103,8 +104,37 @@ export function SideBar({ className }: { className?: string }) {
 				>
 					{globalInfo.version ? `v${globalInfo.version}` : "unknown"}
 				</SideBarButton>
+				<BuddyworksBadge />
 			</div>
 		</Card>
+	);
+}
+
+function BuddyworksBadge() {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					className="mt-1 flex shrink-0 items-center justify-center rounded-md px-3 py-2 opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring compact:size-10 compact:p-1"
+					onClick={() => commands.utilOpenUrl("https://buddyworks.wtf")}
+				>
+					{/* full sidebar: wordmark */}
+					<img
+						src={bwText}
+						alt="BUDDYWORKS"
+						className="h-auto w-full max-w-36 compact:hidden"
+					/>
+					{/* compact sidebar (40px wide): mascot mark */}
+					<img
+						src={bwMark}
+						alt="BUDDYWORKS"
+						className="hidden size-8 object-contain compact:block"
+					/>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="right">buddyworks.wtf</TooltipContent>
+		</Tooltip>
 	);
 }
 
@@ -216,7 +246,6 @@ function DevMenu() {
 			>
 				<span className={"font-bold text-lg"}>Dev Menu</span>
 				<LanguageSelector />
-				<ThemeSelector />
 				<GuiAnimationSwitch />
 				<GuiCompactSwitch />
 				<Button

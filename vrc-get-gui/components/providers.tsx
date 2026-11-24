@@ -22,6 +22,7 @@ import type { LogEntry, TauriImportTemplateResult } from "@/lib/bindings";
 import { commands } from "@/lib/bindings";
 import { DialogRoot, openSingleDialog } from "@/lib/dialog";
 import { isFindKey, isLanguageCycleKey, useDocumentEvent } from "@/lib/events";
+import globalInfo from "@/lib/global-info";
 import { cycleLanguage, tc } from "@/lib/i18n";
 import { processResult } from "@/lib/import-templates";
 import { queryClient } from "@/lib/query-client";
@@ -107,6 +108,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 		(async () => {
 			try {
 				if (import.meta.env.DEV) return;
+				// BUDDYWORKS builds are not published on the upstream update channel
+				if (!globalInfo.checkForUpdates) return;
 				const checkVersion = await commands.utilCheckForUpdate();
 				if (cancel) return;
 				if (checkVersion) {

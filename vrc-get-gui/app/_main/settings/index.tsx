@@ -30,7 +30,6 @@ import {
 	ProjectPathWarnings,
 	ProjectSyncModeSelect,
 	ProjectSyncModeWarning,
-	ThemeSelector,
 	WarningMessage,
 } from "@/components/common-setting-parts";
 import { HNavBar, HNavBarText, VStack } from "@/components/layout";
@@ -772,7 +771,6 @@ function AppearanceCard() {
 		<SettingsCard className={"flex flex-col gap-2"}>
 			<h2>{tc("settings:appearance")}</h2>
 			<LanguageSelector />
-			<ThemeSelector />
 			<GuiAnimationSwitch />
 			<GuiCompactSwitch />
 		</SettingsCard>

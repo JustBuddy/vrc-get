@@ -94,107 +94,61 @@
 	}
 }
 
+/*
+ * BUDDYWORKS theme (dark only)
+ *
+ * Brand palette (https://ci.buddyworks.wtf/):
+ *   Accent A  Cadmium Yellow            #FDDA0D
+ *   Accent B  Glowing-Hairstrain White  #E5E5E5
+ *   Stencil A Plain Black               #000000
+ *   Stencil B Dark Grey                 #191919
+ *
+ * Black page, dark grey surfaces, off-white text and yellow as the single
+ * accent color. There is no light variant: it is not a valid scheme for the
+ * brand, so the theme setting is ignored and <html> always gets class="dark".
+ */
+
 :root {
-	--background: hsl(0 0% 100%);
-	--background-start: hsl(190 7.89% 85.1%);
-	--background-end: hsl(0, 0%, 100%);
-	--foreground: hsl(240 10% 20%);
-	--card: hsl(0 0% 100%);
-	--card-foreground: hsl(240 10% 35%);
-	--popover: hsl(0 0% 100%);
-	--popover-foreground: hsl(240 10% 20%);
-	--primary: hsl(240 5.9% 20%);
-	--primary-foreground: hsl(0 0% 98%);
-	--secondary: hsl(240 4.8% 95.9%);
-	--secondary-foreground: hsl(240 5.9% 10%);
-	--muted: hsl(240 4.8% 95.9%);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: hsl(240 4.8% 95.9%);
-	--accent-foreground: hsl(240 5.9% 30%);
-	--info: hsl(207 90% 54%);
-	--info-foreground: hsl(210 40% 98%);
-	--success: hsl(122 39% 49%);
-	--success-foreground: hsl(210 40% 98%);
-	--warning: hsl(52.15, 100%, 46.47%);
-	--warning-foreground: hsl(240 10% 13%);
-	--destructive: hsl(0 84.2% 60.2%);
-	--destructive-foreground: hsl(0 0% 98%);
-	--border: hsl(240 5.9% 90%);
-	--input: hsl(240 5.9% 90%);
-	--ring: hsl(240 5.9% 10%);
+	--bw-yellow: #fdda0d;
+	--bw-white: #e5e5e5;
+	--bw-black: #000000;
+	--bw-grey: #191919;
+
+	--background: var(--bw-black);
+	--background-start: #101010;
+	--background-end: var(--bw-black);
+	--foreground: var(--bw-white);
+	--card: var(--bw-grey);
+	--card-foreground: var(--bw-white);
+	--popover: var(--bw-grey);
+	--popover-foreground: var(--bw-white);
+	--primary: var(--bw-yellow);
+	--primary-foreground: var(--bw-black);
+	--secondary: #272727;
+	--secondary-foreground: var(--bw-white);
+	--muted: #272727;
+	--muted-foreground: #9e9e9e;
+	--accent: #272727;
+	--accent-foreground: var(--bw-white);
+	--info: #3d3d3d;
+	--info-foreground: var(--bw-white);
+	--success: var(--bw-white);
+	--success-foreground: var(--bw-black);
+	--warning: #ff9f1a;
+	--warning-foreground: var(--bw-black);
+	--destructive: #e5484d;
+	--destructive-foreground: #fafafa;
+	--border: #2e2e2e;
+	--input: #2e2e2e;
+	--ring: var(--bw-yellow);
 	--radius: 0.75rem;
+
+	color-scheme: dark;
 }
 
-.dark {
-	--bg-color: hsl(240 10% 13%);
-	--fg-color: hsl(240 10% 85%);
-	--secondary-bg: hsl(240 3.7% 19%);
-	--primary-fg: hsl(240 5.9% 15%);
-
-	--background: var(--bg-color);
-	--background-start: hsl(0 0% 3%);
-	--background-end: hsl(10 8% 15%);
-	--foreground: var(--fg-color);
-	--card: var(--bg-color);
-	--card-foreground: var(--fg-color);
-	--popover: var(--bg-color);
-	--popover-foreground: var(--fg-color);
-	--primary: var(--fg-color);
-	--primary-foreground: var(--primary-fg);
-	--secondary: var(--secondary-bg);
-	--secondary-foreground: var(--fg-color);
-	--muted: var(--secondary-bg);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: var(--secondary-bg);
-	--accent-foreground: var(--fg-color);
-	--info: hsl(207 90% 54%);
-	--info-foreground: hsl(210 40% 90%);
-	--success: hsl(122 39% 49%);
-	--success-foreground: hsl(210 40% 90%);
-	--warning: hsl(52.15, 100%, 46.47%);
-	--warning-foreground: hsl(240 10% 13%);
-	--destructive: hsl(0 84.2% 60.2%);
-	--destructive-foreground: var(--fg-color);
-	--border: var(--secondary-bg);
-	--input: var(--secondary-bg);
-	--ring: hsl(240 4.9% 83.9%);
-}
-
-@media (prefers-color-scheme: dark) {
-	.system {
-		--bg-color: hsl(240 10% 13%);
-		--fg-color: hsl(240 10% 85%);
-		--secondary-bg: hsl(240 3.7% 19%);
-		--primary-fg: hsl(240 5.9% 15%);
-
-		--background: var(--bg-color);
-		--background-start: hsl(0 0% 3%);
-		--background-end: hsl(10 8% 15%);
-		--foreground: var(--fg-color);
-		--card: var(--bg-color);
-		--card-foreground: var(--fg-color);
-		--popover: var(--bg-color);
-		--popover-foreground: var(--fg-color);
-		--primary: var(--fg-color);
-		--primary-foreground: var(--primary-fg);
-		--secondary: var(--secondary-bg);
-		--secondary-foreground: var(--fg-color);
-		--muted: var(--secondary-bg);
-		--muted-foreground: oklch(0.708 0 0);
-		--accent: var(--secondary-bg);
-		--accent-foreground: var(--fg-color);
-		--info: hsl(207 90% 54%);
-		--info-foreground: hsl(210 40% 90%);
-		--success: hsl(122 39% 49%);
-		--success-foreground: hsl(210 40% 90%);
-		--warning: hsl(52.15, 100%, 46.47%);
-		--warning-foreground: hsl(240 10% 13%);
-		--destructive: hsl(0 84.2% 60.2%);
-		--destructive-foreground: var(--fg-color);
-		--border: var(--secondary-bg);
-		--input: var(--secondary-bg);
-		--ring: hsl(240 4.9% 83.9%);
-	}
+::selection {
+	background: var(--bw-yellow);
+	color: var(--bw-black);
 }
 
 body {
